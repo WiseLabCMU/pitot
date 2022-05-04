@@ -10,12 +10,12 @@ import optax
 import haiku as hk
 
 
-Result = namedtuple("Result", ["train", "val", "params", "splits"])
+Result = namedtuple("Result", ["train", "val", "test", "params", "splits"])
 
 
 class ReplicateTrainer:
     """Training class for multiple replicates; captures shared objects.
-    
+
     Parameters
     ----------
     dataset : Dataset
@@ -33,6 +33,7 @@ class ReplicateTrainer:
     tqdm : tqdm.tqdm or tqdm.notebook.tqdm
         Progress bar to use during training, if present.
     """
+
     def __init__(
             self, dataset, model, optimizer=None,
             epochs=100, epoch_size=100, batch=64, tqdm=None):
@@ -50,17 +51,17 @@ class ReplicateTrainer:
         self.epoch_size = epoch_size
         self.batch = batch
         self.tqdm = tqdm
-    
+
     def train(self, key, splits):
         """Train model.
-        
+
         Parameters
         ----------
         key : jax.random.PRNGKey
             Root random key for this training loop.
         splits : IndexSplit
-            train, test indices.
-        
+            train, val, test indices.
+
         Returns
         -------
         Result
@@ -93,6 +94,7 @@ class ReplicateTrainer:
 
         train = []
         val = []
+        test = []
         for _ in iterator:
             epoch_loss = []
             for _ in range(self.epoch_size):
@@ -102,14 +104,15 @@ class ReplicateTrainer:
 
             train.append(jnp.mean(jnp.array(epoch_loss)))
             val.append(_loss_func(params, splits.val))
+            test.append(_loss_func(params, splits.test))
 
         return Result(
-            train=jnp.array(train), val=jnp.array(val),
+            train=jnp.array(train), val=jnp.array(val), test=jnp.array(test),
             params=params, splits=splits)
 
     def train_replicates(self, key, replicates=100, p=0.25):
         """Train replicates.
-        
+
         Parameters
         ----------
         key : jax.random.PRNGKey
@@ -118,7 +121,7 @@ class ReplicateTrainer:
             Number of replicates to train.
         p : float
             Target sparsity level (proportion of train set).
-        
+
         Returns
         -------
         Result
@@ -141,6 +144,9 @@ class ReplicateTrainer:
         np.savez(file, **{
             "train": results.train,
             "val": results.val,
+            "test": results.test,
             "split_train": vmap(self.dataset.to_mask)(results.splits.train),
+            "split_val": vmap(self.dataset.to_mask)(results.splits.val),
+            "split_test": vmap(self.dataset.to_mask)(results.splits.test),
             "pred": vmap(self.predictions)(results.params)
         })

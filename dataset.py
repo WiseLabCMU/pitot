@@ -10,7 +10,8 @@ from jax import random, vmap
 from sklearn.decomposition import PCA
 
 
-IndexSplit = namedtuple("IndexSplit", ['train', 'val'])
+IndexSplit = namedtuple("IndexSplit", ['train', 'val', 'test'])
+
 
 class Dataset:
     """Dataset.
@@ -56,18 +57,26 @@ class Dataset:
 
     def split_iid(self, key, p=0.5):
         """Create Data split."""
-
         xy = self.grid()
         idx = random.permutation(key, jnp.arange(xy.shape[0]))
 
         train_size = int(xy.shape[0] * p)
-        return IndexSplit(train=xy[idx[:train_size]], val=xy[idx[train_size:]])
+        val_size = int((xy.shape[0] - train_size) / 2)
+        return IndexSplit(
+            train=xy[idx[:train_size]],
+            val=xy[idx[train_size:train_size + val_size]],
+            test=xy[idx[train_size + val_size:]])
 
     def split_kfold(self, key, k=2):
-        """Perform k-fold data split into train and validation sets.
-        
-        Each assignment is IID, so there may be some variance -- n(k-1) / k^2
-        in the exact split numbers.
+        """Perform k-fold minor data split into train, val, and test sets.
+
+        The splits will have the following sizes:
+          - train: floor(1/k)
+          - val: floor((1 - train) / 2)
+          - test: 1 - floor((1 - train) / 2)
+
+        Assignments are exact, so each split will have exactly the same split
+        sizes.
 
         Parameters
         ----------
@@ -84,8 +93,12 @@ class Dataset:
             jnp.arange(xy.shape[0]).reshape(1, -1)
             + jnp.arange(k).reshape(-1, 1) * size
         ) % xy.shape[0]]]
+        test_size = int((xy.shape[0] - size) / 2)
 
-        return IndexSplit(train=orders[:, :size, :], val=orders[:, size:, :])
+        return IndexSplit(
+            train=orders[:, :size, :],
+            val=orders[:, size:size + test_size, :],
+            test=orders[:, size + test_size:, :])
 
     def split(self, key, splits=100, p=0.25):
         """Generate data splits using n sets of k-fold splits or IID splits.
@@ -107,7 +120,8 @@ class Dataset:
             splits = vmap(partial(self.split_kfold, k=k))(jnp.array(keys))
             return IndexSplit(
                 train=splits.train.reshape(-1, *splits.train.shape[2:]),
-                val=splits.val.reshape(-1, *splits.val.shape[2:]))
+                val=splits.val.reshape(-1, *splits.val.shape[2:]),
+                test=splits.test.reshape(-1, *splits.test.shape[2:]))
         else:
             _, *keys = random.split(key, splits + 1)
             splits = vmap(partial(self.split_iid, p=p))(jnp.array(keys))
