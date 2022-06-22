@@ -41,4 +41,4 @@ if __name__ == '__main__':
             data[key] = np.concatenate([z[key] for z, _ in npzs], axis=-2)
 
     # Save
-    np.savez(args.out, **meta, **data)
+    np.savez_compressed(args.out, **meta, **data)
