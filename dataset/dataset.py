@@ -1,6 +1,5 @@
 """Dataset for prediction."""
 
-from functools import partial
 from collections import namedtuple
 
 import numpy as np
@@ -10,7 +9,7 @@ from jax import random, vmap
 from sklearn.decomposition import PCA
 
 
-IndexSplit = namedtuple("IndexSplit", ['train', 'val', 'test'])
+IndexSplit = namedtuple("IndexSplit", ['train', 'val', 'test', 'k', 'n', 'p'])
 
 
 class Dataset:
@@ -36,7 +35,8 @@ class Dataset:
         if isinstance(data, str):
             data = dict(np.load(data))
         self.data = data
-        self.matrix = jnp.log(key(data))
+        self._data_key = key(data)
+        self.matrix = jnp.log(self._data_key)
         self.rms = jnp.sqrt(jnp.mean(jnp.square(self.matrix)))
         if device is not None:
             self.matrix_torch = self.matrix_torch.to(device)
@@ -49,7 +49,7 @@ class Dataset:
 
         self.files = data['files']
         self.runtimes = data['runtimes']
-        self.size = jnp.sum(data['runtime'] > 0)
+        self.size = jnp.sum(self._data_key > 0)
 
     def grid(self):
         """Create (x, y) grid pairs."""
@@ -57,53 +57,81 @@ class Dataset:
             jnp.arange(self.matrix.shape[0]), jnp.arange(self.matrix.shape[1]))
         return jnp.stack([x.reshape(-1), y.reshape(-1)]).T
 
-    def split_iid(self, key, p=0.5):
-        """Create Data split."""
-        xy = self.grid()
-        idx = random.permutation(key, jnp.arange(xy.shape[0]))
+    def split_iid(self, key, p=0.5, n=1):
+        """Create Data split between train and test sets."""
+        def _inner(_key):
+            xy = self.grid()
+            idx = random.permutation(_key, jnp.arange(xy.shape[0]))
 
-        train_size = int(xy.shape[0] * p)
-        val_size = int((xy.shape[0] - train_size) / 2)
-        return IndexSplit(
-            train=xy[idx[:train_size]],
-            val=xy[idx[train_size:train_size + val_size]],
-            test=xy[idx[train_size + val_size:]])
+            train_size = int(xy.shape[0] * p)
+            return xy[idx[:train_size]], xy[idx[train_size:]]
 
-    def split_kfold(self, key, k=2):
-        """Perform k-fold minor data split into train, val, and test sets.
+        _, *keys = random.split(key, n + 1)
+        train, test = vmap(_inner)(jnp.array(keys))
+        return train, test
 
-        The splits will have the following sizes:
-          - train: floor(1/k)
-          - val: floor((1 - train) / 2)
-          - test: 1 - floor((1 - train) / 2)
+    def split_kfold(self, key, k=2, n=1):
+        """Perform k-fold minor data split into train and test sets.
 
         Assignments are exact, so each split will have exactly the same split
-        sizes.
+        sizes. Remainder points will stay in the test set and not be included
+        in any of the train sets.
 
         Parameters
         ----------
         key : jax.random.PRNGKey
             Root PRNGKey for this operation.
         k : int
-            Number of splits.
+            Number of splits for test set.
+        n : int
+            Number of repetitions.
         """
-        xy = self.grid()
-        idx = random.permutation(key, jnp.arange(xy.shape[0]))
-        size = int(xy.shape[0] / k)
+        def _inner(_key):
+            xy = self.grid()
+            idx = random.permutation(_key, jnp.arange(xy.shape[0]))
+            size = int(xy.shape[0] / k)
 
-        orders = xy[idx[(
-            jnp.arange(xy.shape[0]).reshape(1, -1)
-            + jnp.arange(k).reshape(-1, 1) * size
-        ) % xy.shape[0]]]
-        test_size = int((xy.shape[0] - size) / 2)
+            orders = xy[idx[(
+                jnp.arange(xy.shape[0]).reshape(1, -1)
+                + jnp.arange(k).reshape(-1, 1) * size
+            ) % xy.shape[0]]]
+            return (orders[:, :size, :], orders[:, size:, :])
 
-        return IndexSplit(
-            train=orders[:, :size, :],
-            val=orders[:, size:size + test_size, :],
-            test=orders[:, size + test_size:, :])
+        _, *keys = random.split(key, n + 1)
+        train, test = vmap(_inner)(jnp.array(keys))
+        return (
+            train.reshape(-1, *train.shape[2:]),
+            test.reshape(-1, *test.shape[2:]))
 
-    def split(self, key, splits=100, p=0.25):
+    @staticmethod
+    def split_crossval(data, split=10):
+        """Split training set into train and validation sets for k-fold CV.
+
+        Assumes the train set is already shuffled.
+        """
+        def _inner(row):
+            size = int(row.shape[0] / split)
+            orders = row[(
+                jnp.arange(row.shape[0]).reshape(1, -1)
+                + jnp.arange(split).reshape(-1, 1) * size
+            ) % row.shape[0]]
+            return (orders[:, size:, :], orders[:, :size, :])
+
+        train, val = vmap(_inner)(data)
+        return train, val
+
+    def split(self, key, splits=100, p=0.25, kval=24):
         """Generate data splits using n sets of k-fold splits or IID splits.
+
+        Returns index arrays with the following shape:
+
+            (splits, kval, samples, 2)
+
+        Where:
+          - splits is the number of replicates (with train+val/test splits)
+          - kval is the k-fold cross validation performed on each replicate
+          - samples is the number of samples in that split
+          - last axis specifies (x, y) of the sample
 
         Parameters
         ----------
@@ -112,22 +140,33 @@ class Dataset:
         splits : int
             Number of splits to generate.
         p : int
-            Split proportion. If approximately 1/k, uses k-fold; otherwise,
-            uses IID splits.
+            Split proportion. If approximately 1/k or 1 - 1/k, uses k-fold;
+            otherwise, uses IID splits.
+        kval : int
+            Number of splits for train set for k-fold CV.
+
+        Returns
+        -------
+        IndexSplit
+            train, val, and test splits, along with metadata.
         """
         if p < 0.5 and np.abs(int(1 / p) - 1 / p) < 0.05:
-            k = int(1 / p)
+            k = round(1 / p)
             n = int(splits / k)
-            _, *keys = random.split(key, n + 1)
-            splits = vmap(partial(self.split_kfold, k=k))(jnp.array(keys))
-            return IndexSplit(
-                train=splits.train.reshape(-1, *splits.train.shape[2:]),
-                val=splits.val.reshape(-1, *splits.val.shape[2:]),
-                test=splits.test.reshape(-1, *splits.test.shape[2:]))
+            train, test = self.split_kfold(key, k, n)
+        elif p > 0.5 and np.abs(int(1 / (1 - p)) - 1 / (1 - p)) < 0.05:
+            k = round(1 / (1 - p))
+            n = int(splits / k)
+            test, train = self.split_kfold(key, k, n)
         else:
-            _, *keys = random.split(key, splits + 1)
-            splits = vmap(partial(self.split_iid, p=p))(jnp.array(keys))
-            return splits
+            k = None
+            n = splits
+            train, test = self.split_iid(key, p=p, n=splits)
+
+        train, val = self.split_crossval(train, split=kval)
+        test = jnp.tile(
+            test.reshape([test.shape[0], 1, *test.shape[1:]]), [1, kval, 1, 1])
+        return IndexSplit(train=train, val=val, test=test, p=p, k=k, n=n)
 
     def to_mask(self, xy):
         """Convert indices to mask."""

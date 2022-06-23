@@ -1,6 +1,6 @@
-jax==0.3.8
-dm-haiku==0.0.6
-optax==0.1.2
+jax
+dm-haiku
+optax
 tqdm
 matplotlib
 docstring_parser

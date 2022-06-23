@@ -13,6 +13,11 @@ import haiku as hk
 Result = namedtuple("Result", ["train", "val", "test", "params", "splits"])
 
 
+def vmap2(x):
+    """2-level vmap helper."""
+    return vmap(vmap(x))
+
+
 class ReplicateTrainer:
     """Training class for multiple replicates; captures shared objects.
 
@@ -130,7 +135,7 @@ class ReplicateTrainer:
         _, ks, key = random.split(key, 3)
         splits = self.dataset.split(ks, splits=replicates, p=p)
         _, *keys = random.split(key, replicates + 1)
-        return vmap(self.train)(jnp.array(keys), splits)
+        return vmap2(self.train)(jnp.array(keys), splits)
 
     def predictions(self, params):
         """Generate prediction matrix for parameters."""
@@ -141,12 +146,12 @@ class ReplicateTrainer:
 
     def save_results(self, results, file="results.npz"):
         """Save results (and predictions) to disk."""
-        np.savez(file, **{
+        np.savez_compressed(file, **{
             "train": results.train,
             "val": results.val,
             "test": results.test,
-            "split_train": vmap(self.dataset.to_mask)(results.splits.train),
-            "split_val": vmap(self.dataset.to_mask)(results.splits.val),
-            "split_test": vmap(self.dataset.to_mask)(results.splits.test),
-            "pred": vmap(self.predictions)(results.params)
+            "split_train": vmap2(self.dataset.to_mask)(results.splits.train),
+            "split_val": vmap2(self.dataset.to_mask)(results.splits.val),
+            "split_test": vmap2(self.dataset.to_mask)(results.splits.test),
+            "pred": vmap2(self.predictions)(results.params)
         })
