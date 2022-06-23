@@ -20,6 +20,8 @@ class Dataset:
     ----------
     data : str or dict
         Source data, or filepath to npz file containing data.
+    key : callable
+        Callable that fetches the target value from the archive.
     device : torch.device
         Device to place data on.
     val : float
@@ -29,12 +31,12 @@ class Dataset:
     """
 
     def __init__(
-            self, data="data/polybench/20-40.npz", device=None):
+            self, data="polybench.npz", key=lambda x: x['mean'], device=None):
 
         if isinstance(data, str):
             data = dict(np.load(data))
         self.data = data
-        self.matrix = jnp.log(data['runtime'])
+        self.matrix = jnp.log(key(data))
         self.rms = jnp.sqrt(jnp.mean(jnp.square(self.matrix)))
         if device is not None:
             self.matrix_torch = self.matrix_torch.to(device)

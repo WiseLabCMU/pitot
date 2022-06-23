@@ -17,7 +17,7 @@ def _load_pair(ds, op):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Join datasets by runtime.")
     parser.add_argument(
-        "--datasets", nargs='+', default=[], help="Dataset file paths to join.")
+        "--datasets", nargs='+', default=[], help="Dataset paths to join.")
     parser.add_argument(
         "--wasm", nargs='+', default=[], help="WASM opcode counts to join.")
     parser.add_argument("--out", default="merged.npz", help="Output npz file.")
