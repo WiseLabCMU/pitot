@@ -9,7 +9,7 @@ from jax import random, vmap
 from sklearn.decomposition import PCA
 
 
-IndexSplit = namedtuple("IndexSplit", ['train', 'val', 'test', 'k', 'n', 'p'])
+IndexSplit = namedtuple("IndexSplit", ['train', 'val', 'test'])
 
 
 class Dataset:
@@ -27,16 +27,19 @@ class Dataset:
         Proportion of dataset to reserve for validation split.
     test : float
         Proportion of dataset to reserve for test split.
+    offset : float
+        Fixed offset to apply to data (for scale normalization)
     """
 
     def __init__(
-            self, data="polybench.npz", key=lambda x: x['mean'], device=None):
+            self, data="polybench.npz", key=lambda x: x['mean'], device=None,
+            offset=1.):
 
         if isinstance(data, str):
             data = dict(np.load(data))
         self.data = data
         self._data_key = key(data)
-        self.matrix = jnp.log(self._data_key)
+        self.matrix = jnp.log(self._data_key) - jnp.log(offset)
         self.rms = jnp.sqrt(jnp.mean(jnp.square(self.matrix)))
         if device is not None:
             self.matrix_torch = self.matrix_torch.to(device)
@@ -166,7 +169,7 @@ class Dataset:
         train, val = self.split_crossval(train, split=kval)
         test = jnp.tile(
             test.reshape([test.shape[0], 1, *test.shape[1:]]), [1, kval, 1, 1])
-        return IndexSplit(train=train, val=val, test=test, p=p, k=k, n=n)
+        return IndexSplit(train=train, val=val, test=test)
 
     def to_mask(self, xy):
         """Convert indices to mask."""

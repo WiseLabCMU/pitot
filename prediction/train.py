@@ -1,8 +1,7 @@
-"""Training loop."""
+"""Training Loop."""
 
 from collections import namedtuple
 
-import numpy as np
 from jax import numpy as jnp
 from jax import random, jit, value_and_grad, vmap
 
@@ -10,16 +9,11 @@ import optax
 import haiku as hk
 
 
-Result = namedtuple("Result", ["train", "val", "test", "params", "splits"])
+Result = namedtuple("Result", ["train", "val", "test", "splits", "params"])
 
 
-def vmap2(x):
-    """2-level vmap helper."""
-    return vmap(vmap(x))
-
-
-class ReplicateTrainer:
-    """Training class for multiple replicates; captures shared objects.
+class CrossValidationTrainer:
+    """Training class for k-fold cross validation.
 
     Parameters
     ----------
@@ -113,9 +107,33 @@ class ReplicateTrainer:
 
         return Result(
             train=jnp.array(train), val=jnp.array(val), test=jnp.array(test),
-            params=params, splits=splits)
+            splits=splits, params=params)
 
-    def train_replicates(self, key, replicates=100, p=0.25):
+    def predictions(self, params):
+        """Generate prediction matrix for parameters."""
+        xy = self.dataset.grid()
+        pred = self.model.apply(params, xy)
+        return jnp.zeros_like(
+            self.dataset.matrix).at[xy[:, 0], xy[:, 1]].set(pred)
+
+    def export_results(self, results):
+        """Create dictionary of results for saving."""
+        return {
+            "train": jnp.sqrt(results.train),
+            "val": jnp.sqrt(results.val),
+            "test": jnp.sqrt(results.test),
+            "split_train": vmap(self.dataset.to_mask)(results.splits.train),
+            "split_val": vmap(self.dataset.to_mask)(results.splits.val),
+            "split_test": vmap(self.dataset.to_mask)(results.splits.test),
+            "predictions": vmap(self.predictions)(results.params)
+        }
+
+    def train_splits(self, key, splits):
+        """Train cross-validation splits."""
+        _, *keys = random.split(key, splits.train.shape[0] + 1)
+        return vmap(self.train)(jnp.array(keys), splits)
+
+    def train_replicates(self, key, replicates=100, p=0.25, k=24):
         """Train replicates.
 
         Parameters
@@ -125,33 +143,16 @@ class ReplicateTrainer:
         replicates : int
             Number of replicates to train.
         p : float
-            Target sparsity level (proportion of train set).
+            Target sparsity level (proportion of train+val set).
+        k : int
+            Number of folds for cross validation.
 
         Returns
         -------
         Result
             Losses by epoch and parameters; also includes splits.
         """
-        _, ks, key = random.split(key, 3)
-        splits = self.dataset.split(ks, splits=replicates, p=p)
-        _, *keys = random.split(key, replicates + 1)
-        return vmap2(self.train)(jnp.array(keys), splits)
-
-    def predictions(self, params):
-        """Generate prediction matrix for parameters."""
-        xy = self.dataset.grid()
-        pred = self.model.apply(params, xy)
-        return jnp.zeros_like(
-            self.dataset.matrix).at[xy[:, 0], xy[:, 1]].set(pred)
-
-    def save_results(self, results, file="results.npz"):
-        """Save results (and predictions) to disk."""
-        np.savez_compressed(file, **{
-            "train": results.train,
-            "val": results.val,
-            "test": results.test,
-            "split_train": vmap2(self.dataset.to_mask)(results.splits.train),
-            "split_val": vmap2(self.dataset.to_mask)(results.splits.val),
-            "split_test": vmap2(self.dataset.to_mask)(results.splits.test),
-            "pred": vmap2(self.predictions)(results.params)
-        })
+        _, ks, kt = random.split(key, 3)
+        splits = self.dataset.split(ks, splits=replicates, p=p, kval=k)
+        _, *keys = random.split(kt, splits.train.shape[0] + 1)
+        return vmap(self.train_splits)(jnp.array(keys), splits)
