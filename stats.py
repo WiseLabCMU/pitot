@@ -8,15 +8,8 @@ from dataset import Session
 from parse import ArgumentParser
 
 
-if __name__ == '__main__':
-
-    p = ArgumentParser()
-    p.add_argument(
-        "path", default="data/polybench",
-        help="Directory containing data to summarize.")
-    args = p.parse_args()
-
-    stats = Session(args["path"]).stats(save="{}.npz".format(args["path"]))
+def _main(path):
+    stats = Session(path).stats(save="{}.npz".format(path))
 
     fig, axs = plt.subplots(1, 3, figsize=(12, 8))
 
@@ -39,4 +32,16 @@ if __name__ == '__main__':
     axs[2].set_yticks([])
 
     fig.tight_layout(w_pad=0, h_pad=0)
-    fig.savefig("{}.png".format(args["path"]), dpi=100)
+    fig.savefig("{}.png".format(path), dpi=100)
+
+
+if __name__ == '__main__':
+
+    p = ArgumentParser()
+    p.add_argument(
+        "path", nargs='+', default=["data/polybench"],
+        help="Directories containing data to summarize.")
+    args = p.parse_args()
+
+    for path in args["path"]:
+        _main(path)

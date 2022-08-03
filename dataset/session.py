@@ -41,9 +41,9 @@ class Session:
         with open(os.path.join(dir, "metadata.json")) as f:
             self.metadata = json.load(f)
 
-        self.files = self.manifest['file'].unique()
+        self.files = self.manifest['file'].unique().astype(str)
         self.files.sort()
-        self.runtimes = self.manifest['runtime'].unique()
+        self.runtimes = self.manifest['runtime'].unique().astype(str)
         self.runtimes.sort()
 
     def filter(self, **kwargs):
@@ -82,8 +82,8 @@ class Session:
             k: np.zeros((len(self.files), len(self.runtimes)))
             for k in self._stats
         }
-        stats["files"] = np.array(self.files)
-        stats["runtimes"] = np.array(self.runtimes)
+        stats["files"] = self.files
+        stats["runtimes"] = self.runtimes
         stats["percentile"] = np.zeros((
             len(self._percentiles), len(self.files), len(self.runtimes)))
 
@@ -104,8 +104,11 @@ class Session:
                             res = -1
                         stats[k][i, j] = res
                 # CDF
-                stats["percentile"][:, i, j] = np.percentile(
-                    y, self._percentiles)
+                try:
+                    stats["percentile"][:, i, j] = np.percentile(
+                        y, self._percentiles)
+                except Exception as e:
+                    pass
         if save:
             np.savez(save, **stats)
         return stats

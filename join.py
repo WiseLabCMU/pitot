@@ -4,41 +4,63 @@ import numpy as np
 import argparse
 
 
-def _load_pair(ds, op):
-    ds = np.load(ds, allow_pickle=True)
-    op = np.load(op, allow_pickle=True)
-
-    np.testing.assert_array_equal(
-        ds['files'], [f.replace('wasm', 'aot') for f in op['files']])
-
-    return ds, op
-
-
-if __name__ == '__main__':
+def _parse():
     parser = argparse.ArgumentParser(description="Join datasets by runtime.")
     parser.add_argument(
         "--datasets", nargs='+', default=[], help="Dataset paths to join.")
     parser.add_argument(
-        "--wasm", nargs='+', default=[], help="WASM opcode counts to join.")
+        "--opcodes", nargs='+', default=[], help="WASM opcode counts to join.")
+    parser.add_argument(
+        "--runtimes", nargs='+', default=[], help="Runtime metadata to join.")
     parser.add_argument("--out", default="merged.npz", help="Output npz file.")
-    args = parser.parse_args()
+    return parser
 
+
+def _load_matrix(sources):
     # Load, check files match with WASM
-    npzs = [_load_pair(ds, op) for ds, op in zip(args.datasets, args.wasm)]
+    npzs = [np.load(ds) for ds in sources]
 
     # Check runtimes match
-    for ds, _ in npzs[1:]:
-        np.testing.assert_array_equal(npzs[0][0]['runtimes'], ds['runtimes'])
+    runtimes = npzs[0]['runtimes']
+    for ds in npzs[1:]:
+        np.testing.assert_array_equal(runtimes, ds['runtimes'])
 
-    # Merge
-    meta = {}
-    meta['files'] = np.concatenate([z['files'] for z, _ in npzs]).astype(str)
-    meta['runtimes'] = np.array(npzs[0][0]['runtimes']).astype(str)
-    meta['opcodes'] = np.concatenate([z['opcodes'] for _, z in npzs])
+    # Concatenate
     data = {}
-    for key in npzs[0][0].keys():
+    for key in npzs[0].keys():
         if key not in {'files', 'runtimes'}:
-            data[key] = np.concatenate([z[key] for z, _ in npzs], axis=-2)
+            data[key] = np.concatenate([z[key] for z in npzs], axis=-2)
+
+    # Modules
+    modules = np.concatenate([z['files'] for z in npzs]).astype(str)
+
+    return data, runtimes, modules
+
+
+def _load_side_info(sources, keys, values):
+    res = {}
+    for source in sources:
+        npz = np.load(source)
+        for k, v in zip(npz[keys], npz[values]):
+            res[k] = v
+    return res
+
+
+if __name__ == '__main__':
+    args = _parse().parse_args()
+
+    data, runtimes, modules = _load_matrix(args.datasets)
+    opcodes = _load_side_info(args.opcodes, "files", "opcodes")
+    opcodes = {k.replace('wasm', 'aot'): v for k, v in opcodes.items()}
+    platform = _load_side_info(args.runtimes, "runtimes", "data")
+
+    # Load runtimes
+    meta = {
+        'modules': modules,
+        'runtimes': runtimes,
+        'module_data': np.array([opcodes[k] for k in modules]),
+        'runtime_data': np.array([platform[k] for k in runtimes])    
+    }
 
     # Save
-    np.savez_compressed(args.out, **meta, **data)
+    np.savez_compressed(args.out, **data, **meta)
