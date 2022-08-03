@@ -32,7 +32,7 @@ class Dataset:
     """
 
     def __init__(
-            self, data="polybench.npz", key=lambda x: x['mean'], device=None,
+            self, data="data.npz", key=lambda x: x['mean'], device=None,
             offset=1.):
 
         if isinstance(data, str):
@@ -44,14 +44,15 @@ class Dataset:
         if device is not None:
             self.matrix_torch = self.matrix_torch.to(device)
 
-        opcodes_nonzero = np.sum(data['opcodes'], axis=0) > 0
-        _opcodes = data['opcodes'][:, opcodes_nonzero]
-        self.opcodes = jnp.log(_opcodes.astype(jnp.float32) + 1)
-        self.opcodes_pca = jnp.array(PCA().fit_transform(self.opcodes))
-        self.opcode_names = np.where(opcodes_nonzero)
+        self.module_data = jnp.log(data['module_data'].astype(jnp.float32) + 1)
+        self.module_data_pca = jnp.array(PCA().fit_transform(self.module_data))
+        self.runtime_data = data['runtime_data']
 
-        self.files = data['files']
+        self.modules = data['modules']
         self.runtimes = data['runtimes']
+        self.cpu_names = data['cpu_names']
+        self.opcode_names = data['opcode_names']
+
         self.size = jnp.sum(self._data_key > 0)
 
     def grid(self):

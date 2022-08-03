@@ -54,13 +54,21 @@ if __name__ == '__main__':
     opcodes = {k.replace('wasm', 'aot'): v for k, v in opcodes.items()}
     platform = _load_side_info(args.runtimes, "runtimes", "data")
 
-    # Load runtimes
+    # Compile data
     meta = {
         'modules': modules,
         'runtimes': runtimes,
         'module_data': np.array([opcodes[k] for k in modules]),
-        'runtime_data': np.array([platform[k] for k in runtimes])    
+        'runtime_data': np.array([platform[k] for k in runtimes]),
     }
+
+    # Post processing
+    opcodes_nonzero = np.sum(meta['module_data'], axis=0) > 0
+    meta['module_data'] = meta['module_data'][:, opcodes_nonzero]
+
+    # Metadata
+    meta['cpu_names'] = np.load(args.runtimes[0])['cpus']
+    meta['opcode_names'] = np.where(opcodes_nonzero)
 
     # Save
     np.savez_compressed(args.out, **data, **meta)
