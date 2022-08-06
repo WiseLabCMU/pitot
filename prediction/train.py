@@ -34,13 +34,13 @@ class CrossValidationTrainer:
         Number of batches per epoch; each batch is IID.
     batch : int
         Batch size.
-    logsumexp: bool
-        Use logsumexp instead of simple sum.
+    jit : bool
+        Use jit on training step.
     """
 
     def __init__(
             self, dataset, model, optimizer=None,
-            epochs=100, epoch_size=100, batch=64):
+            epochs=100, epoch_size=100, batch=64, jit=True):
 
         def _forward(x):
             return model()(x)
@@ -54,15 +54,16 @@ class CrossValidationTrainer:
         self.epochs = epochs
         self.epoch_size = epoch_size
         self.batch = batch
+        self.jit = jit
 
     def train(self, key, train, val, test=None, base=None, tqdm=None):
         """Train model."""
-        @jit
         def _loss_func(params, x):
-            pred = self.model.apply(params, x) + base[x[:, 0], x[:, 1]]
+            pred = self.model.apply(params, x)
+            if base is not None:
+                pred = pred * 0.01 + base[x[:, 0], x[:, 1]]
             return self.dataset.loss(pred, x)
 
-        @jit
         def _step(key, params, opt_state):
             batch = random.choice(key, train, axis=0, shape=(self.batch,))
             loss, grads = value_and_grad(
@@ -70,6 +71,10 @@ class CrossValidationTrainer:
             updates, opt_state = self.optimizer.update(grads, opt_state)
             params = optax.apply_updates(params, updates)
             return params, loss, opt_state
+
+        if self.jit:
+            _loss_func = jit(_loss_func)
+            _step = jit(_step)
 
         _, kp, key = random.split(key, 3)
         params = self.model.init(kp, train[:1])
@@ -149,6 +154,16 @@ class CrossValidationTrainer:
         # Have to do this step outside because fit synchronizes globally
         base = Rank1(self.dataset).fit_predict(train)
 
+        # Get baseline train/test
+        def _baseline(base, train, test):
+            train_loss = self.dataset.loss(
+                base[train[:, 0], train[:, 1]], indices=train)
+            test_loss = self.dataset.loss(
+                base[test[:, 0], test[:, 1]], indices=test)
+            return (train_loss, test_loss)
+
+        baseline = vmap(_baseline)(base, train, test)
+
         # Generate train/val/test for full method
         train_final, val = vmap(partial(
             split.crossval, split=k
@@ -161,5 +176,7 @@ class CrossValidationTrainer:
             ))(split.keys(_key, train.shape[0]), train, val)
 
         # Outer IID replicates
-        return vmap(_train)(
+        res = vmap(_train)(
             split.keys(key, train.shape[0]), train_final, val, test, base)
+
+        return res, baseline

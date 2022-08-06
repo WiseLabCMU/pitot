@@ -49,7 +49,7 @@ class Dataset:
         # Side information
         self.module_data = jnp.log(data['module_data'].astype(jnp.float32) + 1)
         self.module_data_pca = jnp.array(PCA().fit_transform(self.module_data))
-        self.runtime_data = data['runtime_data']
+        self.runtime_data = jnp.array(data['runtime_data'])
 
         # Send to GPU if applicable
         if device is not None:

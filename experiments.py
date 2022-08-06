@@ -16,7 +16,7 @@ def _experiment(model, constr, kwargs, s):
         ds, partial(constr, name=model, **kwargs), optimizer=constr.optimizer,
         epochs=constr.epochs, epoch_size=constr.epoch_size, batch=64,
         tqdm=partial(tqdm, desc="{} : {}".format(model, s)))
-    results = trainer.train_replicates(key, replicates=20, p=s, k=24)
+    results = trainer.train_replicates(key, replicates=1000, p=s, k=24)
     results_exp = vmap(trainer.export_results)(results)
     np.savez_compressed(
         os.path.join(model_dir, "{}.npz".format(s)), **results_exp)

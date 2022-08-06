@@ -6,3 +6,4 @@ matplotlib
 docstring_parser
 pandas
 numpy
+scikit-learn
