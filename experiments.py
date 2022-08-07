@@ -49,7 +49,7 @@ def _experiment(name, method, p):
         epochs=method.epochs, epoch_size=method.epoch_size, batch=64)
 
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
-    results = trainer.train_replicates(replicates=1, p=p, k=25, tqdm=pbar)
+    results = trainer.train_replicates(replicates=100, p=p, k=25, tqdm=pbar)
 
     model_dir = os.path.join("results", name)
     os.makedirs(model_dir, exist_ok=True)

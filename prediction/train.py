@@ -136,15 +136,14 @@ class CrossValidationTrainer:
 
         Returns
         -------
-        Result
+        dict
             Losses by epoch and parameters; also includes splits.
-            Shapes:
-                .loss.train, .val, .test: (replicates, k, epochs)
-                .splits:
-                    .train, .val: (replicates, k, samples, 2)
-                    .test: (replicates, 2)
-                .pred: (replicates, k, epochs, modules, runtimes)
-                .baseline: (replicates, modules, runtimes)
+            Keys with shape:
+              - train_loss, val_loss, test_loss: (replicates, k, epochs)
+              - train_split, val_split: (replicates, k, samples, 2)
+              - test_split: (replicates, samples, 2)
+              - pred: (replicates, epochs, modules, runtimes)
+              - baseline: (replicates, modules, runtimes)
         """
         # Create key
         if isinstance(key, int):
@@ -184,6 +183,6 @@ class CrossValidationTrainer:
             "train_split": train_final,
             "val_split": val,
             "test_split": test,
-            "predictions": results["pred"],
+            "predictions": jnp.mean(results["pred"], axis=1),
             "baseline": baseline
         }
