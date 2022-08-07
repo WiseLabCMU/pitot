@@ -31,7 +31,7 @@ class MatrixFactorization(hk.Module):
 
     def _predict(self, x):
         ui = self.module(x[:, 0])
-        vj = self.runtime(x[:, 0])
+        vj = self.runtime(x[:, 1])
         if self.logsumexp:
             return jnp.log(jnp.sum(jnp.exp(ui + vj), axis=1))
         else:
