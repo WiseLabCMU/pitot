@@ -17,18 +17,6 @@ Method = namedtuple(
     "Method", ["constr", "kwargs", "optimizer", "epochs", "epoch_size"])
 
 MODELS = {
-    "linear": Method(
-        constr=linear,
-        kwargs={"dim": 32, "scale": 0.01},
-        optimizer=optax.adam(0.001),
-        epochs=50,
-        epoch_size=20),
-    "logsumexp": Method(
-        constr=logsumexp,
-        kwargs={"dim": 32, "scale": 0.01},
-        optimizer=optax.adam(0.001),
-        epochs=50,
-        epoch_size=20),
     "embedding": Method(
         constr=embedding,
         kwargs={
@@ -36,6 +24,18 @@ MODELS = {
             "layers": [64, 32], "dim": 4, "scale": 0.1},
         optimizer=optax.adam(0.001),
         epochs=50,
+        epoch_size=100),
+    "linear": Method(
+        constr=linear,
+        kwargs={"dim": 32, "scale": 0.01},
+        optimizer=optax.adam(0.001),
+        epochs=20,
+        epoch_size=100),
+    "logsumexp": Method(
+        constr=logsumexp,
+        kwargs={"dim": 32, "scale": 0.01},
+        optimizer=optax.adam(0.001),
+        epochs=20,
         epoch_size=100)
 }
 

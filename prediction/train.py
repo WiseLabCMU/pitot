@@ -29,6 +29,8 @@ class CrossValidationTrainer:
         Callable that creates the module to use.
     optimizer : optax.GradientTransformation
         Optimizer to use.
+    multiplier : float
+        Multiplier to apply to residual fitting.
     epochs : int
         Number of epochs (not a "true" epoch; just used for accounting).
         A checkpoint is saved (to main memory) after each epoch.
@@ -44,7 +46,7 @@ class CrossValidationTrainer:
     """
 
     def __init__(
-            self, dataset, model, optimizer=None,
+            self, dataset, model, optimizer=None, multiplier=0.001,
             epochs=10, epoch_size=100, batch=64, jit=True, cpu=None):
 
         def _forward(x):
@@ -55,6 +57,7 @@ class CrossValidationTrainer:
         if optimizer is None:
             optimizer = optax.adam(0.001)
         self.optimizer = optimizer
+        self.multiplier = multiplier
 
         self.epochs = epochs
         self.epoch_size = epoch_size
@@ -68,7 +71,7 @@ class CrossValidationTrainer:
         def _loss_func(params, x):
             pred = self.model.apply(params, x)
             if base is not None:
-                pred = pred * 0.01 + base[x[:, 0], x[:, 1]]
+                pred = pred * self.multiplier + base[x[:, 0], x[:, 1]]
             return self.dataset.loss(pred, x)
 
         def _step(key, params, opt_state):
@@ -99,9 +102,11 @@ class CrossValidationTrainer:
                 epoch_loss.append(loss)
 
             pred = self.model.apply(params, None)
+            if base is not None:
+                pred = pred * self.multiplier + base
             history.log(
                 train=jnp.mean(jnp.array(epoch_loss)),
-                val=self.dataset.loss(pred, indices=train),
+                val=self.dataset.loss(pred, indices=val),
                 test=self.dataset.loss(pred, indices=test),
                 pred=pred)
 
