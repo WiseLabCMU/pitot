@@ -77,16 +77,7 @@ class Dataset:
         """Index into data."""
         return self.matrix[indices[:, 0], indices[:, 1]]
 
-    def loss(self, pred, indices=None):
-        """Compute squared l2-log loss.
-
-        Parameters
-        ----------
-        pred : jnp.array
-            Predictions. Can be full matrix, or a sparse list.
-        indices : jnp.array
-            Prediction indices. If None, pred is treated as a full matrix.
-        """
+    def _index(self, pred, indices=None):
         # Indices available -> index into matrix
         if indices is not None:
             actual = self.index(indices)
@@ -97,11 +88,29 @@ class Dataset:
         else:
             assert len(pred.shape) == 2
             actual = self.matrix
+        return pred, actual
+
+    def loss(self, pred, indices=None):
+        """Compute squared l2-log loss.
+
+        Parameters
+        ----------
+        pred : jnp.array
+            Predictions. Can be full matrix, or a sparse list.
+        indices : jnp.array
+            Prediction indices. If None, pred is treated as a full matrix.
+        """
+        pred, actual = self._index(pred, indices=indices)
         return jnp.mean(jnp.square(pred - actual))
 
-    def error(self, pred, indices=None):
-        """Compute MSE log error; alias for sqrt(loss)."""
+    def rmse(self, pred, indices=None):
+        """Compute RMSE log error; alias for sqrt(loss)."""
         return jnp.sqrt(self.loss(pred=pred, indices=indices))
+
+    def error(self, pred, indices=None):
+        """Compute mean absolute error."""
+        pred, actual = self._index(pred, indices=indices)
+        return jnp.mean(jnp.abs(pred - actual))
 
     def plot(self, matrix=None, ax=None, figsize=None, title=None):
         """Plot results."""

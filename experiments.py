@@ -23,14 +23,14 @@ MODELS = {
             "runtime_data": ds.runtime_data, "module_data": ds.module_data,
             "layers": [64, 32], "dim": 4, "scale": 0.1},
         optimizer=optax.adam(0.001),
-        epochs=50,
-        epoch_size=50),
+        epochs=100,
+        epoch_size=100),
     "linear": Method(
         constr=linear,
         kwargs={"dim": 32, "scale": 0.01},
         optimizer=optax.adam(0.001),
-        epochs=50,
-        epoch_size=50),
+        epochs=100,
+        epoch_size=100),
 }
 
 SPARSITY = [0.1, 0.25, 0.5, 0.75, 0.9, 0.95]
