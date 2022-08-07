@@ -27,7 +27,8 @@ class LearnedFeatures(hk.Module):
 
     def __call__(self, i):
         """Index into weights with shape (index, features)."""
-        init = hk.initializers.RandomUniform(minval=0, maxval=self.scale)
+        init = hk.initializers.RandomUniform(
+            minval=-self.scale, maxval=self.scale)
         X = hk.get_parameter("X", shape=self.dim, init=init)
         return X[i]
 
