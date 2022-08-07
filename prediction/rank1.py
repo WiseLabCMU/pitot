@@ -23,7 +23,7 @@ class Rank1:
     Model = namedtuple("Rank1Model", ["x", "y"])
     Problem = namedtuple("Rank1Problem", ["mask", "N", "M"])
 
-    def __init__(self, dataset, init_val=0., max_iter=100, tol=1e-8):
+    def __init__(self, dataset, init_val=0., max_iter=1000, tol=1e-8):
         self.dataset = dataset
         self.init_val = init_val
         self.max_iter = max_iter
@@ -83,7 +83,7 @@ class Rank1:
             print(
                 "Convergence warning: l2_delta={} after {} iterations; "
                 "Increase tol or max_iter.".format(
-                    l2_delta, self.max_iter))
+                    l2_delta[l2_delta > self.tol], self.max_iter))
         return state
 
     def fit_predict(self, train):
