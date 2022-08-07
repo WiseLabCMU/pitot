@@ -18,12 +18,16 @@ class Rank1:
         Max number of iterations.
     tol : float
         Convergence criteria on l2 norm; stops when all replicates converge.
+
+        NOTE: Since jax uses 32-bit float by default, if the dataset magnitude is
+        around ~1e-1 - 1e1, the best precision for the delta will be ~1e-7, so
+        tol should be >>1e-7.
     """
 
     Model = namedtuple("Rank1Model", ["x", "y"])
     Problem = namedtuple("Rank1Problem", ["mask", "N", "M"])
 
-    def __init__(self, dataset, init_val=0., max_iter=1000, tol=1e-8):
+    def __init__(self, dataset, init_val=0., max_iter=100, tol=1e-5):
         self.dataset = dataset
         self.init_val = init_val
         self.max_iter = max_iter
