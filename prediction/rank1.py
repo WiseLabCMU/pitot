@@ -1,6 +1,6 @@
 """Rank 1 Baseline Model."""
 
-from jax import vmap
+from jax import vmap, jit
 from jax import numpy as jnp
 from collections import namedtuple
 
@@ -73,8 +73,10 @@ class Rank1:
         be vmapped, since it contains a break for the convergence criteria.
         """
         problem, state = vmap(self.init)(train)
+        _iter = jit(vmap(self.iter))
+
         for _ in range(self.max_iter):
-            l2_delta, state = vmap(self.iter)(problem, state)
+            l2_delta, state = _iter(problem, state)
             if jnp.all(l2_delta < self.tol):
                 break
         else:

@@ -63,6 +63,12 @@ class Dataset:
         self.cpu_names = data['cpu_names']
         self.opcode_names = data['opcode_names']
 
+    def grid(self):
+        """Create (x, y) grid pairs."""
+        x, y = jnp.meshgrid(
+            np.arange(self.shape[0]), jnp.arange(self.shape[1]))
+        return jnp.stack([x.reshape(-1), y.reshape(-1)]).T
+
     def to_mask(self, xy):
         """Convert indices to mask."""
         return jnp.zeros_like(self.matrix).at[xy[:, 0], xy[:, 1]].set(1.)
@@ -81,9 +87,15 @@ class Dataset:
         indices : jnp.array
             Prediction indices. If None, pred is treated as a full matrix.
         """
+        # Indices available -> index into matrix
         if indices is not None:
             actual = self.index(indices)
+            # Full matrix predictions -> also index given predictions
+            if len(pred.shape) == 2:
+                pred = pred[indices[:, 0], indices[:, 1]]
+        # No indices -> assume full matrix
         else:
+            assert len(pred.shape) == 2
             actual = self.matrix
         return jnp.mean(jnp.square(pred - actual))
 

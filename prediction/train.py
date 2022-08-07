@@ -3,6 +3,7 @@
 from collections import namedtuple
 from functools import partial
 
+import numpy as np
 from jax import numpy as jnp
 from jax import random, jit, value_and_grad, vmap
 
@@ -11,9 +12,10 @@ import haiku as hk
 
 from . import split
 from .rank1 import Rank1
+from .history import History
 
 
-Result = namedtuple("Result", ["loss", "splits", "params", "base"])
+Result = namedtuple("Result", ["loss", "split", "pred", "baseline"])
 Splits = namedtuple("Splits", ["train", "val", "test"])
 
 
@@ -30,17 +32,21 @@ class CrossValidationTrainer:
         Optimizer to use.
     epochs : int
         Number of epochs (not a "true" epoch; just used for accounting).
+        A checkpoint is saved (to main memory) after each epoch.
     epoch_size : int
         Number of batches per epoch; each batch is IID.
     batch : int
         Batch size.
     jit : bool
-        Use jit on training step.
+        Use jit on training step. Will be very slow if False -- should only
+        disable jit for debugging!
+    cpu : jaxlib.xla_extension.Device
+        CPU to use to save data. If None, uses default.
     """
 
     def __init__(
             self, dataset, model, optimizer=None,
-            epochs=100, epoch_size=100, batch=64, jit=True):
+            epochs=10, epoch_size=100, batch=64, jit=True, cpu=None):
 
         def _forward(x):
             return model()(x)
@@ -54,7 +60,9 @@ class CrossValidationTrainer:
         self.epochs = epochs
         self.epoch_size = epoch_size
         self.batch = batch
+
         self.jit = jit
+        self.cpu = cpu
 
     def train(self, key, train, val, test=None, base=None, tqdm=None):
         """Train model."""
@@ -84,7 +92,7 @@ class CrossValidationTrainer:
         if tqdm:
             iterator = tqdm(iterator)
 
-        losses = Splits([], [], [])
+        history = History(["train", "val", "test", "pred"], cpu=self.cpu)
         for _ in iterator:
             epoch_loss = []
             for _ in range(self.epoch_size):
@@ -92,14 +100,13 @@ class CrossValidationTrainer:
                 params, loss, opt_state = _step(ks, params, opt_state)
                 epoch_loss.append(loss)
 
-            losses.train.append(jnp.mean(jnp.array(epoch_loss)))
-            losses.val.append(_loss_func(params, val))
-            losses.test.append(_loss_func(params, test))
+            history.log(
+                train=jnp.mean(jnp.array(epoch_loss)),
+                val=_loss_func(params, val),
+                test=_loss_func(params, test),
+                pred=self.predictions(params, base))
 
-        return Result(
-            loss=Splits(*(jnp.array(x) for x in losses)),
-            splits=Splits(train, val, test),
-            params=params, base=base)
+        return history.export()
 
     def predictions(self, params, base=None):
         """Generate prediction matrix for parameters."""
@@ -110,18 +117,6 @@ class CrossValidationTrainer:
         if base is not None:
             res += base
         return res
-
-    def export_results(self, results):
-        """Create dictionary of results for saving."""
-        return {
-            "train": jnp.sqrt(results.train),
-            "val": jnp.sqrt(results.val),
-            "test": jnp.sqrt(results.test),
-            "split_train": vmap(self.dataset.to_mask)(results.splits.train),
-            "split_val": vmap(self.dataset.to_mask)(results.splits.val),
-            "split_test": vmap(self.dataset.to_mask)(results.splits.test),
-            "predictions": vmap(self.predictions)(results.params, results.base)
-        }
 
     def train_replicates(self, key, replicates=100, p=0.25, k=25, tqdm=None):
         """Train replicates.
@@ -143,6 +138,13 @@ class CrossValidationTrainer:
         -------
         Result
             Losses by epoch and parameters; also includes splits.
+            Shapes:
+                .loss.train, .val, .test: (replicates, k, epochs)
+                .splits:
+                    .train, .val: (replicates, k, samples, 2)
+                    .test: (replicates, 2)
+                .pred: (replicates, k, epochs, modules, runtimes)
+                .baseline: (replicates, modules, runtimes)
         """
         # Generate train/test
         offsets = jnp.arange(replicates) % self.dataset.shape[0]
@@ -152,17 +154,7 @@ class CrossValidationTrainer:
         ))(split.keys(key, replicates), offsets)
 
         # Have to do this step outside because fit synchronizes globally
-        base = Rank1(self.dataset).fit_predict(train)
-
-        # Get baseline train/test
-        def _baseline(base, train, test):
-            train_loss = self.dataset.loss(
-                base[train[:, 0], train[:, 1]], indices=train)
-            test_loss = self.dataset.loss(
-                base[test[:, 0], test[:, 1]], indices=test)
-            return (train_loss, test_loss)
-
-        baseline = vmap(_baseline)(base, train, test)
+        baseline = Rank1(self.dataset).fit_predict(train)
 
         # Generate train/val/test for full method
         train_final, val = vmap(partial(
@@ -170,13 +162,24 @@ class CrossValidationTrainer:
         ))(split.keys(key, train.shape[0]), train)
 
         # Inner k-fold replicates
-        def _train(_key, train, val, test, base):
+        def _train(_key, train, val, test, baseline):
             return vmap(partial(
-                self.train, base=base, test=test, tqdm=tqdm
+                self.train, base=baseline, test=test, tqdm=tqdm
             ))(split.keys(_key, train.shape[0]), train, val)
 
         # Outer IID replicates
-        res = vmap(_train)(
-            split.keys(key, train.shape[0]), train_final, val, test, base)
+        results = vmap(_train)(
+            split.keys(key, train.shape[0]), train_final, val, test, baseline)
 
-        return res, baseline
+        # Generate predictions; must be single layer dictionary to be
+        # compatible with np.savez.
+        return {
+            "train_loss": results["train"],
+            "val_loss": results["val"],
+            "test_loss": results["test"],
+            "train_split": train_final,
+            "val_split": val,
+            "test_split": test,
+            "predictions": results["pred"],
+            "baseline": baseline
+        }
