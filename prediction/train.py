@@ -3,7 +3,6 @@
 from collections import namedtuple
 from functools import partial
 
-import numpy as np
 from jax import numpy as jnp
 from jax import random, jit, value_and_grad, vmap
 
@@ -81,7 +80,6 @@ class CrossValidationTrainer:
             return params, loss, opt_state
 
         if self.jit:
-            _loss_func = jit(_loss_func)
             _step = jit(_step)
 
         _, kp, key = random.split(key, 3)
@@ -100,11 +98,12 @@ class CrossValidationTrainer:
                 params, loss, opt_state = _step(ks, params, opt_state)
                 epoch_loss.append(loss)
 
+            pred = self.model.apply(params, None)
             history.log(
                 train=jnp.mean(jnp.array(epoch_loss)),
-                val=_loss_func(params, val),
-                test=_loss_func(params, test),
-                pred=self.predictions(params, base))
+                val=self.dataset.loss(pred, indices=train),
+                test=self.dataset.loss(pred, indices=test),
+                pred=pred)
 
         return history.export()
 
@@ -118,13 +117,14 @@ class CrossValidationTrainer:
             res += base
         return res
 
-    def train_replicates(self, key, replicates=100, p=0.25, k=25, tqdm=None):
+    def train_replicates(
+            self, key=42, replicates=100, p=0.25, k=25, tqdm=None):
         """Train replicates.
 
         Parameters
         ----------
-        key : jax.random.PRNGKey
-            Root random key.
+        key : jax.random.PRNGKey or int.
+            Root random key; if int, creates one.
         replicates : int
             Number of replicates to train.
         p : float
@@ -146,6 +146,10 @@ class CrossValidationTrainer:
                 .pred: (replicates, k, epochs, modules, runtimes)
                 .baseline: (replicates, modules, runtimes)
         """
+        # Create key
+        if isinstance(key, int):
+            key = random.PRNGKey(key)
+
         # Generate train/test
         offsets = jnp.arange(replicates) % self.dataset.shape[0]
         train, test = vmap(partial(

@@ -1,65 +1,78 @@
 """Models."""
 
 import optax
+from functools import partial
 from jax import numpy as jnp
 import haiku as hk
 
 from .modules import LearnedFeatures, HybridEmbedding
 
 
-class MFBase(hk.Module):
-    """Base class for matrix factorization methods."""
-
-    optimizer = optax.adam(0.001)
-    epochs = 25
-    epoch_size = 100
-
-
-class MFLinear(MFBase):
-    """Linear matrix factorization: y_ij = <u_i, v_j>."""
-
-    # optimizer = optax.adam(
-    #     optax.piecewise_constant_schedule(0.1, {1000: 0.1, 5000: 0.1}))
-    epoch_size = 20
-
-    def __init__(self, dim=8, scale=0.01, samples=(10, 10), name=None):
-        super().__init__(name=name)
-
-        self.U = LearnedFeatures(dim, samples[0], scale=scale, name="modules")
-        self.V = LearnedFeatures(dim, samples[1], scale=scale, name="runtimes")
-
-    def __call__(self, x):
-        """<u_i * v_j>."""
-        ui = self.U(x[:, 0])
-        vj = self.V(x[:, 1])
-        return jnp.sum(ui * vj, axis=1)
-
-
-class MFLogSumExp(MFLinear):
-    """Linear matrix factorization: y_ij = logsumexp(u_i + v_j)."""
-
-    def __call__(self, x):
-        """logsumexp(u_i + v_j)."""
-        ui = self.U(x[:, 0])
-        vj = self.V(x[:, 1])
-        return jnp.log(jnp.sum(jnp.exp(ui + vj), axis=1))
-
-
-class MFEmbedding(MFBase):
-    """Matrix Factorization with Side Information using NN Embedding."""
+class MatrixFactorization(hk.Module):
+    """Generic matrix factorization."""
 
     def __init__(
-            self, runtime_data, module_data, samples=(10, 10),
-            layers=[64, 32], dim=4, scale=0.1, name=None):
+            self, module, runtime, shape=(10, 10), logsumexp=False,
+            optimizer=optax.adam(0.001), name=None):
         super().__init__(name=name)
 
-        self.module = HybridEmbedding(
-            module_data, layers=layers, dim=dim, samples=samples[0],
-            scale=scale, name="module")
-        self.runtime = HybridEmbedding(
-            runtime_data, layers=layers, dim=dim, samples=samples[1],
-            scale=scale, name="runtime")
+        self.module = module(samples=shape[0], name="module")
+        self.runtime = runtime(samples=shape[1], name="runtime")
+
+        self.logsumexp = logsumexp
+        self.shape = shape
 
     def __call__(self, x):
-        """<module_emb(u_i, x_i), runtime_emb(v_j, y_j)>."""
-        return jnp.sum(self.module(x[:, 0]) * self.runtime(x[:, 1]), axis=1)
+        """<module(i), runtime(j)>."""
+        if x is None:
+            return self._predict_full()
+        else:
+            return self._predict(x)
+
+    def _predict(self, x):
+        ui = self.module(x[:, 0])
+        vj = self.runtime(x[:, 0])
+        if self.logsumexp:
+            return jnp.log(jnp.sum(jnp.exp(ui + vj), axis=1))
+        else:
+            return jnp.sum(ui * vj, axis=1)
+
+    def _predict_full(self):
+        module_emb = self.module(jnp.arange(self.shape[0]))
+        runtime_emb = self.runtime(jnp.arange(self.shape[1]))
+        if self.logsumexp:
+            return jnp.log(jnp.sum(
+                jnp.exp(
+                    module_emb.reshape(self.shape[0], 1, -1)
+                    + runtime_emb.reshape(1, self.shape[1], -1)),
+                axis=2))
+        else:
+            return jnp.matmul(module_emb, runtime_emb.T)
+
+
+def linear(dim=32, shape=(10, 10), scale=0.01):
+    """Linear matrix factorization: y_ij = <u_i, v_j>."""
+    return MatrixFactorization(
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        shape=shape, logsumexp=False, name="linear")
+
+
+def logsumexp(dim=32, shape=(10, 10), scale=0.01):
+    """Linear matrix factorization: y_ij = log(sum(exp(u_i + v_j)))."""
+    return MatrixFactorization(
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        shape=shape, logsumexp=True, name="linear")
+
+
+def embedding(
+        runtime_data=None, module_data=None,
+        shape=(10, 10), layers=[64, 32], dim=4, scale=0.1):
+    """Matrix Factorization with Side Information using NN Embedding."""
+    return MatrixFactorization(
+        partial(HybridEmbedding,
+                module_data, layers=layers, dim=dim, scale=scale),
+        partial(HybridEmbedding,
+                runtime_data, layers=layers, dim=dim, scale=scale),
+        shape=shape, logsumexp=False, name="Embedding")
