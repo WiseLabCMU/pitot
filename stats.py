@@ -1,6 +1,7 @@
 """Generate statistics npz file."""
 
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 
 
@@ -8,8 +9,8 @@ from dataset import Session
 from parse import ArgumentParser
 
 
-def _main(path):
-    stats = Session(path).stats(save="{}.npz".format(path))
+def _matrix(path):
+    stats = Session(path).matrix(save="{}.npz".format(path))
 
     fig, axs = plt.subplots(1, 3, figsize=(12, 8))
 
@@ -35,13 +36,23 @@ def _main(path):
     fig.savefig("{}.png".format(path), dpi=100)
 
 
+def _table(path):
+    return Session(path).summary(save=path + ".csv")
+
+
 if __name__ == '__main__':
 
     p = ArgumentParser()
     p.add_argument(
         "path", nargs='+', default=["data/polybench"],
         help="Directories containing data to summarize.")
+    p.add_argument(
+        "--mode", default="matrix", help="Type to compute; matrix or table.")
     args = p.parse_args()
 
-    for path in args["path"]:
-        _main(path)
+    if args["mode"] == "matrix":
+        for path in args["path"]:
+            _matrix(path)
+    elif args["mode"] == "table":
+        for path in args["path"]:
+            _table(path)

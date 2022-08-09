@@ -59,7 +59,9 @@ class Dataset:
 
         # Metadata
         self.modules = data['modules']
+        self.modules_dict = {m: i for i, m in enumerate(self.modules)}
         self.runtimes = data['runtimes']
+        self.runtimes_dict = {r: i for i, r in enumerate(self.runtimes)}
         self.cpu_names = data['cpu_names']
         self.opcode_names = data['opcode_names']
 

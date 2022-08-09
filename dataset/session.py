@@ -64,8 +64,60 @@ class Session:
         else:
             return self._get(df.iloc[0])
 
-    def stats(self, save=None):
-        """Calculate statistics.
+    def _summarize(self, file, rt, percentile=True):
+        stats = {}
+
+        # Summary Stats
+        trace = self.get(file=file, runtime=rt)
+        y = trace.arrays(keys=["cpu_time"])['cpu_time'][2:-1]
+        if y is not None:
+            for k, v in self._stats.items():
+                try:
+                    res = v(y)
+                except Exception as e:
+                    res = -1
+                    print("Exception at ({}, {}): {}".format(file, rt, e))
+                if np.isnan(res):
+                    res = -1
+                stats[k] = res
+        # CDF
+        if percentile:
+            try:
+                stats["percentile"] = np.percentile(y, self._percentiles)
+            except Exception as e:
+                stats["percentile"] = np.zeros(len(self._percentiles))
+
+        return stats
+
+    def summary(self, save=None):
+        """Calculate statistics in tabular form.
+
+        Parameters
+        ----------
+        save : str or None
+            If not None, save results to this file.
+
+        Returns
+        -------
+        pd.DataFrame
+            Manifest with extra rows for stats.
+        """
+        stats = {k: [] for k in self._stats}
+        for _, row in tqdm(self.manifest.iterrows(), total=len(self.manifest)):
+            _stats = self._summarize(
+                row["file"], row["runtime"], percentile=False)
+            for k, v in _stats.items():
+                stats[k].append(v)
+        for k, v in stats.items():
+            self.manifest[k] = v
+
+        if save is not None:
+            self.manifest.to_csv(save)
+
+        return self.manifest
+
+    def matrix(self, save=None):
+        """Calculate statistics in matrix form.
 
         Parameters
         ----------
@@ -89,26 +141,10 @@ class Session:
 
         for i, file in enumerate(tqdm(self.files)):
             for j, rt in enumerate(self.runtimes):
-                # Summary Stats
-                trace = self.get(file=file, runtime=rt)
-                y = trace.arrays(keys=["cpu_time"])['cpu_time'][2:-1]
-                if y is not None:
-                    for k, v in self._stats.items():
-                        try:
-                            res = v(y)
-                        except Exception as e:
-                            res = -1
-                            print("Exception at ({}, {}): {}".format(
-                                file, rt, e))
-                        if np.isnan(res):
-                            res = -1
-                        stats[k][i, j] = res
-                # CDF
-                try:
-                    stats["percentile"][:, i, j] = np.percentile(
-                        y, self._percentiles)
-                except Exception as e:
-                    pass
+                summary = self._summarize(file, rt)
+                for k in self._stats:
+                    stats[k][i, j] = summary[k]
+                stats["percentile"][:, i, j] = summary["percentile"]
         if save:
             np.savez(save, **stats)
         return stats
