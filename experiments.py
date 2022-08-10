@@ -39,19 +39,25 @@ MODELS = {
         constr=linear,
         kwargs={"dim": 32, "scale": 0.01},
         **COMMON),
+    "simple_mlp": Method(
+        constr=MLPOnly,
+        kwargs={
+            "runtime_data": ds.runtime_data, "module_data": ds.module_data},
+        **COMMON),
 }
 
 SPARSITY = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 
-def _experiment(name, method, p):
+def _experiment(name, method, p, replicates=100):
     trainer = CrossValidationTrainer(
         ds, partial(method.constr, shape=ds.shape, **method.kwargs),
         optimizer=method.optimizer,
         epochs=method.epochs, epoch_size=method.epoch_size, batch=64)
 
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
-    results = trainer.train_replicates(replicates=100, p=p, k=25, tqdm=pbar)
+    results = trainer.train_replicates(
+        replicates=replicates, p=p, k=25, tqdm=pbar)
 
     model_dir = os.path.join("results", name)
     os.makedirs(model_dir, exist_ok=True)
@@ -62,9 +68,10 @@ if __name__ == "__main__":
 
     p = ArgumentParser()
     p.add_argument("methods", nargs="+", default=[])
+    p.add_argument("--replicates", type=int, default=100)
     args = p.parse_args()
 
     for name in args.methods:
         model_dir = os.path.join("results", name)
         for s in SPARSITY:
-            _experiment(name, MODELS[name], s)
+            _experiment(name, MODELS[name], s, replicates=args.replicates)

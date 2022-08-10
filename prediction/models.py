@@ -1,26 +1,16 @@
 """Models."""
 
-import optax
+import jax
 from functools import partial
 from jax import numpy as jnp
 import haiku as hk
 
-from .modules import LearnedFeatures, HybridEmbedding
+from .modules import (
+    LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp)
 
 
-class MatrixFactorization(hk.Module):
-    """Generic matrix factorization."""
-
-    def __init__(
-            self, module, runtime, shape=(10, 10), logsumexp=False,
-            optimizer=optax.adam(0.001), name=None):
-        super().__init__(name=name)
-
-        self.module = module(samples=shape[0], name="module")
-        self.runtime = runtime(samples=shape[1], name="runtime")
-
-        self.logsumexp = logsumexp
-        self.shape = shape
+class MFBase(hk.Module):
+    """Matrix Factorization base class."""
 
     def __call__(self, x):
         """<module(i), runtime(j)>."""
@@ -28,6 +18,20 @@ class MatrixFactorization(hk.Module):
             return self._predict_full()
         else:
             return self._predict(x)
+
+
+class MatrixFactorization(MFBase):
+    """Generic matrix factorization."""
+
+    def __init__(
+            self, module, runtime, shape=(10, 10), logsumexp=False, name=None):
+        super().__init__(name=name)
+
+        self.module = module(samples=shape[0], name="module")
+        self.runtime = runtime(samples=shape[1], name="runtime")
+
+        self.logsumexp = logsumexp
+        self.shape = shape
 
     def _predict(self, x):
         ui = self.module(x[:, 0])
@@ -48,6 +52,30 @@ class MatrixFactorization(hk.Module):
                 axis=2))
         else:
             return jnp.matmul(module_emb, runtime_emb.T)
+
+
+class MLPOnly(MFBase):
+    """Prediction using a MLP without matrix factorization."""
+
+    def __init__(self, module_data=None, runtime_data=None, shape=(10, 10)):
+        super().__init__(name="simple_mlp")
+        self.module_data = SideInformation(module_data, name="module")
+        self.runtime_data = SideInformation(runtime_data, name="runtime")
+        self.shape = shape
+
+        self.mlp = simple_mlp([64, 32, 1], jax.nn.tanh, name="mlp")
+
+    def _predict(self, x):
+        features = jnp.concatenate(
+            [self.module_data(x[:, 0]), self.runtime_data(x[:, 1])], axis=1)
+        return self.mlp(features).reshape(-1)
+
+    def _predict_full(self):
+        x, y = jnp.meshgrid(
+            jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
+        coords = jnp.stack([x.reshape(-1), y.reshape(-1)]).T
+        pred = self._predict(coords)
+        return jnp.zeros(self.shape).at[coords[:, 0], coords[:, 1]].set(pred)
 
 
 def linear(dim=32, shape=(10, 10), scale=0.01):
