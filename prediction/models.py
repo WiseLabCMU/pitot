@@ -70,9 +70,13 @@ def embedding(
         runtime_data=None, module_data=None,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.1):
     """Matrix Factorization with Side Information using NN Embedding."""
+    def _features(data):
+        if data is None:
+            return partial(LearnedFeatures, dim=layers[-1], scale=scale)
+        else:
+            return partial(
+                HybridEmbedding, data, layers=layers, dim=dim, scale=scale)
+
     return MatrixFactorization(
-        partial(HybridEmbedding,
-                module_data, layers=layers, dim=dim, scale=scale),
-        partial(HybridEmbedding,
-                runtime_data, layers=layers, dim=dim, scale=scale),
+        _features(runtime_data), _features(module_data),
         shape=shape, logsumexp=False, name="Embedding")

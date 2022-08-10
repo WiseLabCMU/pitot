@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from functools import partial
 from collections import namedtuple
+from argparse import ArgumentParser
 import optax
 
 from dataset import Dataset
@@ -16,24 +17,31 @@ ds = Dataset("data.npz", offset=1000. * 1000.)
 Method = namedtuple(
     "Method", ["constr", "kwargs", "optimizer", "epochs", "epoch_size"])
 
+COMMON = {"epochs": 100, "epoch_size": 100, "optimizer": optax.adam(0.001)}
+KWARGS_COMMON = {"layers": [64, 32], "dim": 4, "scale": 0.1}
+
 MODELS = {
     "embedding": Method(
         constr=embedding,
         kwargs={
             "runtime_data": ds.runtime_data, "module_data": ds.module_data,
-            "layers": [64, 32], "dim": 4, "scale": 0.1},
-        optimizer=optax.adam(0.001),
-        epochs=100,
-        epoch_size=100),
+            **KWARGS_COMMON},
+        **COMMON),
+    "runtime_only": Method(
+        constr=embedding,
+        kwargs={"runtime_data": ds.runtime_data, **KWARGS_COMMON},
+        **COMMON),
+    "module_only": Method(
+        constr=embedding,
+        kwargs={"module_data": ds.module_data, **KWARGS_COMMON},
+        **COMMON),
     "linear": Method(
         constr=linear,
         kwargs={"dim": 32, "scale": 0.01},
-        optimizer=optax.adam(0.001),
-        epochs=100,
-        epoch_size=100),
+        **COMMON),
 }
 
-SPARSITY = [0.1, 0.25, 0.5, 0.75, 0.9, 0.95]
+SPARSITY = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 
 def _experiment(name, method, p):
@@ -52,7 +60,11 @@ def _experiment(name, method, p):
 
 if __name__ == "__main__":
 
-    for name, model in MODELS.items():
+    p = ArgumentParser()
+    p.add_argument("methods", nargs="+", default=[])
+    args = p.parse_args()
+
+    for name in args.methods:
         model_dir = os.path.join("results", name)
         for s in SPARSITY:
-            _experiment(name, model, s)
+            _experiment(name, MODELS[name], s)
