@@ -49,7 +49,7 @@ MODELS = {
 SPARSITY = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 
-def _experiment(name, method, p, replicates=100):
+def _experiment(name, method, p, replicates=100, baseline=True):
     trainer = CrossValidationTrainer(
         ds, partial(method.constr, shape=ds.shape, **method.kwargs),
         optimizer=method.optimizer,
@@ -57,7 +57,7 @@ def _experiment(name, method, p, replicates=100):
 
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
     results = trainer.train_replicates(
-        replicates=replicates, p=p, k=25, tqdm=pbar)
+        replicates=replicates, p=p, k=25, tqdm=pbar, do_baseline=baseline)
 
     model_dir = os.path.join("results", name)
     os.makedirs(model_dir, exist_ok=True)
@@ -69,9 +69,13 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("methods", nargs="+", default=[])
     p.add_argument("--replicates", type=int, default=100)
+    p.add_argument("--no-baseline", dest="baseline", action='store_false')
+    p.set_defaults(baseline=True)
     args = p.parse_args()
 
     for name in args.methods:
         model_dir = os.path.join("results", name)
         for s in SPARSITY:
-            _experiment(name, MODELS[name], s, replicates=args.replicates)
+            _experiment(
+                name, MODELS[name], s,
+                replicates=args.replicates, baseline=args.baseline)

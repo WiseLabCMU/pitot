@@ -106,5 +106,5 @@ def embedding(
                 HybridEmbedding, data, layers=layers, dim=dim, scale=scale)
 
     return MatrixFactorization(
-        _features(runtime_data), _features(module_data),
+        _features(module_data), _features(runtime_data),
         shape=shape, logsumexp=False, name="Embedding")

@@ -123,7 +123,8 @@ class CrossValidationTrainer:
         return res
 
     def train_replicates(
-            self, key=42, replicates=100, p=0.25, k=25, tqdm=None):
+            self, key=42, replicates=100, p=0.25, k=25, do_baseline=True,
+            tqdm=None):
         """Train replicates.
 
         Parameters
@@ -136,6 +137,8 @@ class CrossValidationTrainer:
             Target sparsity level (proportion of train+val set).
         k : int
             Number of folds for cross validation.
+        do_baseline : bool
+            Use baseline as starting point, and fit residuals only.
         tqdm : tqdm.tqdm or tqdm.notebook.tqdm
             Progress bar to use during training, if present.
 
@@ -156,13 +159,16 @@ class CrossValidationTrainer:
 
         # Generate train/test
         offsets = jnp.arange(replicates) % self.dataset.shape[0]
-        train, test = vmap(partial(
+        train, test =  vmap(partial(
             split.at_least_one, dim=self.dataset.shape,
             train=int(self.dataset.size * p)
         ))(split.keys(key, replicates), offsets)
 
         # Have to do this step outside because fit synchronizes globally
-        baseline = Rank1(self.dataset).fit_predict(train)
+        if do_baseline:
+            baseline = Rank1(self.dataset).fit_predict(train)
+        else:
+            baseline = jnp.zeros([replicates] + list(self.dataset.shape))
 
         # Generate train/val/test for full method
         train_final, val = vmap(partial(
