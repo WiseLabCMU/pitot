@@ -18,7 +18,7 @@ Method = namedtuple(
     "Method", ["constr", "kwargs", "optimizer", "epochs", "epoch_size"])
 
 COMMON = {"epochs": 100, "epoch_size": 100, "optimizer": optax.adam(0.001)}
-KWARGS_COMMON = {"layers": [64, 32], "dim": 4, "scale": 0.1}
+KWARGS_COMMON = {"layers": [64, 32], "dim": 4, "scale": 0.01}
 
 MODELS = {
     "embedding": Method(

@@ -68,7 +68,7 @@ def logsumexp(dim=32, shape=(10, 10), scale=0.01):
 
 def embedding(
         runtime_data=None, module_data=None,
-        shape=(10, 10), layers=[64, 32], dim=4, scale=0.1):
+        shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Side Information using NN Embedding."""
     def _features(data):
         if data is None:
