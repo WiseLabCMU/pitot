@@ -17,7 +17,7 @@ ds = Dataset("data.npz", offset=1000. * 1000.)
 Method = namedtuple(
     "Method", ["constr", "kwargs", "optimizer", "epochs", "epoch_size"])
 
-COMMON = {"epochs": 100, "epoch_size": 100, "optimizer": optax.adam(0.001)}
+COMMON = {"epochs": 250, "epoch_size": 100, "optimizer": optax.adam(0.001)}
 KWARGS_COMMON = {"layers": [64, 32], "dim": 4, "scale": 0.01}
 
 MODELS = {
@@ -47,24 +47,23 @@ MODELS = {
 }
 
 SPARSITY = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+EPOCH_SIZE = []
 
 
-def _experiment(name, method, p, replicates=100, repeat=1, baseline=True):
+def _experiment(name, method, p, replicates=100, baseline=True):
     trainer = CrossValidationTrainer(
         ds, partial(method.constr, shape=ds.shape, **method.kwargs),
         optimizer=method.optimizer,
         epochs=method.epochs, epoch_size=method.epoch_size, batch=64)
 
-    for i in range(repeat):
-        pbar = partial(
-            tqdm, desc="{} : {}, {}/{}".format(name, p, i + 1, repeat))
-        results = trainer.train_replicates(
-            replicates=replicates, p=p, k=25, tqdm=pbar, do_baseline=baseline)
+    pbar = partial(tqdm, desc="{} : {}".format(name, p))
+    results = trainer.train_replicates(
+        replicates=replicates, p=p, k=25, tqdm=pbar, do_baseline=baseline)
 
-        model_dir = os.path.join("results", name)
-        os.makedirs(model_dir, exist_ok=True)
-        np.savez_compressed(
-            os.path.join(model_dir, "{}_{}.npz".format(p, i)), **results)
+    model_dir = os.path.join("results", name)
+    os.makedirs(model_dir, exist_ok=True)
+    np.savez_compressed(
+        os.path.join(model_dir, "{}.npz".format(p)), **results)
 
 
 if __name__ == "__main__":
@@ -72,7 +71,6 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("methods", nargs="+", default=[])
     p.add_argument("--replicates", type=int, default=100)
-    p.add_argument("--repeat", type=int, default=1)
     p.add_argument("--no-baseline", dest="baseline", action='store_false')
     p.set_defaults(baseline=True)
     args = p.parse_args()
@@ -82,4 +80,4 @@ if __name__ == "__main__":
         for s in SPARSITY:
             _experiment(
                 name, MODELS[name], s, replicates=args.replicates,
-                baseline=args.baseline, repeat=args.repeat)
+                baseline=args.baseline)

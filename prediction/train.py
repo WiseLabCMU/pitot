@@ -186,13 +186,12 @@ class CrossValidationTrainer:
             split.keys(key, train.shape[0]), train_final, val, test, baseline)
 
         # Final predictions
-
-        # Generate results; must be single layer dictionary to be
-        # compatible with np.savez.
         pred_raw = jnp.mean(results["pred"], axis=1)
         best = jnp.argmin(jnp.mean(results["val"], axis=1), axis=1)
         pred = pred_raw[jnp.arange(replicates), best]
 
+        # Generate results; must be single layer dictionary to be
+        # compatible with np.savez.
         return {
             "train_loss": results["train"],
             "val_loss": results["val"],
