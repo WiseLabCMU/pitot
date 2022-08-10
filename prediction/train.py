@@ -42,7 +42,7 @@ class CrossValidationTrainer:
         Use jit on training step. Will be very slow if False -- should only
         disable jit for debugging!
     cpu : jaxlib.xla_extension.Device
-        CPU to use to save data. If None, uses default.
+        CPU to use to save data. If None, uses first CPU (jax.devices('cpu')).
     """
 
     def __init__(
@@ -62,8 +62,10 @@ class CrossValidationTrainer:
         self.epochs = epochs
         self.epoch_size = epoch_size
         self.batch = batch
-
         self.jit = jit
+
+        if cpu is None:
+            cpu = jax.devices('cpu')
         self.cpu = cpu
 
     def train(self, key, train, val, test=None, base=None, tqdm=None):
