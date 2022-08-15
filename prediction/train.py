@@ -164,7 +164,7 @@ class CrossValidationTrainer:
 
         # Generate train/test
         offsets = jnp.arange(replicates) % self.dataset.shape[0]
-        train, test =  vmap(partial(
+        train, test = vmap(partial(
             split.at_least_one, dim=self.dataset.shape,
             train=int(self.dataset.size * p)
         ))(split.keys(key, replicates), offsets)

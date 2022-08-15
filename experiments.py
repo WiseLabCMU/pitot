@@ -39,6 +39,14 @@ MODELS = {
         constr=linear,
         kwargs={"dim": 32, "scale": 0.01},
         **COMMON),
+    "linear4": Method(
+        constr=linear,
+        kwargs={"dim": 4, "scale": 0.01},
+        **COMMON),
+    "linear8": Method(
+        constr=linear,
+        kwargs={"dim": 8, "scale": 0.01},
+        **COMMON),
     "simple_mlp": Method(
         constr=MLPOnly,
         kwargs={
