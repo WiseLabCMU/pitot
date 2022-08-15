@@ -35,10 +35,6 @@ MODELS = {
         constr=embedding,
         kwargs={"module_data": ds.module_data, **KWARGS_COMMON},
         **COMMON),
-    "linear": Method(
-        constr=linear,
-        kwargs={"dim": 32, "scale": 0.01},
-        **COMMON),
     "linear4": Method(
         constr=linear,
         kwargs={"dim": 4, "scale": 0.01},
@@ -46,6 +42,18 @@ MODELS = {
     "linear8": Method(
         constr=linear,
         kwargs={"dim": 8, "scale": 0.01},
+        **COMMON),
+    "linear16": Method(
+        constr=linear,
+        kwargs={"dim": 16, "scale": 0.01},
+        **COMMON),
+    "linear32": Method(
+        constr=linear,
+        kwargs={"dim": 32, "scale": 0.01},
+        **COMMON),
+    "linear64": Method(
+        constr=linear,
+        kwargs={"dim": 64, "scale": 0.01},
         **COMMON),
     "simple_mlp": Method(
         constr=MLPOnly,
