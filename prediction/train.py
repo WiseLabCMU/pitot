@@ -3,6 +3,7 @@
 from collections import namedtuple
 from functools import partial
 
+import jax
 from jax import numpy as jnp
 from jax import random, jit, value_and_grad, vmap
 
@@ -65,7 +66,7 @@ class CrossValidationTrainer:
         self.jit = jit
 
         if cpu is None:
-            cpu = jax.devices('cpu')
+            cpu = jax.devices('cpu')[0]
         self.cpu = cpu
 
     def train(self, key, train, val, test=None, base=None, tqdm=None):
@@ -95,7 +96,9 @@ class CrossValidationTrainer:
         if tqdm:
             iterator = tqdm(iterator)
 
-        history = History(["train", "val", "test", "pred"], cpu=self.cpu)
+        history = History(
+            ["train", "val", "test", "pred", "module", "runtime"],
+            cpu=self.cpu)
         for _ in iterator:
             epoch_loss = []
             for _ in range(self.epoch_size):
@@ -103,14 +106,14 @@ class CrossValidationTrainer:
                 params, loss, opt_state = _step(ks, params, opt_state)
                 epoch_loss.append(loss)
 
-            pred = self.model.apply(params, None)
+            pred, module_emb, runtime_emb = self.model.apply(params, None)
             if base is not None:
                 pred = pred * self.multiplier + base
             history.log(
                 train=jnp.mean(jnp.array(epoch_loss)),
                 val=self.dataset.loss(pred, indices=val),
                 test=self.dataset.loss(pred, indices=test),
-                pred=pred)
+                pred=pred, module=module_emb, runtime=runtime_emb)
 
         return history.export()
 
@@ -191,6 +194,8 @@ class CrossValidationTrainer:
         pred_raw = jnp.mean(results["pred"], axis=1)
         best = jnp.argmin(jnp.mean(results["val"], axis=1), axis=1)
         pred = pred_raw[jnp.arange(replicates), best]
+        module_emb = results["module"][jnp.arange(replicates), :, best]
+        runtime_emb = results["runtime"][jnp.arange(replicates), :, best]
 
         # Generate results; must be single layer dictionary to be
         # compatible with np.savez.
@@ -201,6 +206,8 @@ class CrossValidationTrainer:
             "train_split": train_final,
             "val_split": val,
             "test_split": test,
+            "baseline": baseline,
             "predictions": pred,
-            "baseline": baseline
+            "module_emb": module_emb,
+            "runtime_emb": runtime_emb,
         }

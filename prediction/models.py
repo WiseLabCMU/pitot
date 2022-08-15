@@ -49,9 +49,10 @@ class MatrixFactorization(MFBase):
                 jnp.exp(
                     module_emb.reshape(self.shape[0], 1, -1)
                     + runtime_emb.reshape(1, self.shape[1], -1)),
-                axis=2))
+                axis=2)), module_emb, runtime_emb
         else:
-            return jnp.matmul(module_emb, runtime_emb.T)
+            return (
+                jnp.matmul(module_emb, runtime_emb.T), module_emb, runtime_emb)
 
 
 class MLPOnly(MFBase):
@@ -75,7 +76,9 @@ class MLPOnly(MFBase):
             jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
         coords = jnp.stack([x.reshape(-1), y.reshape(-1)]).T
         pred = self._predict(coords)
-        return jnp.zeros(self.shape).at[coords[:, 0], coords[:, 1]].set(pred)
+        return (
+            jnp.zeros(self.shape).at[coords[:, 0], coords[:, 1]].set(pred),
+            0.0, 0.0)
 
 
 def linear(dim=32, shape=(10, 10), scale=0.01):

@@ -30,7 +30,7 @@ class History:
     def log(self, **kwargs):
         """Create new entry."""
         for k, v in kwargs.items():
-            self.history[k].append(self.to_cpu(v))
+            self.history[k].append(device_put(v, device=self.cpu))
 
     def export(self):
         """Export values as nested structure with entries as axis 0."""
