@@ -68,12 +68,11 @@ SPARSITY = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 def _experiment(name, method, p, replicates=100, baseline=True):
     trainer = CrossValidationTrainer(
         ds, partial(method.constr, shape=ds.shape, **method.kwargs),
-        optimizer=method.optimizer,
+        optimizer=method.optimizer, replicates=replicates, k=25,
         epochs=method.epochs, epoch_size=method.epoch_size, batch=64)
 
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
-    results = trainer.train_replicates(
-        replicates=replicates, p=p, k=25, tqdm=pbar, do_baseline=baseline)
+    results = trainer.train_replicates(p=p, tqdm=pbar, do_baseline=baseline)
 
     model_dir = os.path.join("results", name)
     os.makedirs(model_dir, exist_ok=True)
