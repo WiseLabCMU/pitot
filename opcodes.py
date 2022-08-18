@@ -18,7 +18,8 @@ def _main(args):
     session = Session(args.dir)
     opcodes = np.zeros((len(session.files), 256))
     for i, f in enumerate(session.files):
-        opcodes[i] = session.get(file=f, runtime='test').data[-1][16:]
+        opcodes[i] = session.get(
+            file=f, runtime=session.runtimes[0]).data[-1][16:]
     np.savez_compressed(args.out, files=session.files, opcodes=opcodes)
 
 
