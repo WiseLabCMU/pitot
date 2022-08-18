@@ -9,16 +9,15 @@ class History:
 
     Parameters
     ----------
-    keys : str[]
-        List of keys to log.
     cpu : jaxlib.xla_extension.Device or None
         Device to send data back to (to save GPU memory).
     """
 
-    def __init__(self, keys, cpu=None):
+    def __init__(self, cpu=None):
 
-        self.history = {k: [] for k in keys}
+        self.history = {}
         self.cpu = cpu
+        self.best = None
 
     def to_cpu(self, x):
         """Send object to CPU."""
@@ -30,7 +29,19 @@ class History:
     def log(self, **kwargs):
         """Create new entry."""
         for k, v in kwargs.items():
+            if k not in self.history:
+                self.history[k] = []
             self.history[k].append(device_put(v, device=self.cpu))
+
+    def update(self, loss, **kwargs):
+        """Overwrite if loss is improved."""
+        _cpu = {k: device_put(v, device=self.cpu) for k, v in kwargs.items()}
+        if self.best is None:
+            self.history.update(_cpu)
+        else:
+            ind = loss < self.best
+            for k, v in _cpu.items():
+                self.history[k] = self.history[k] * (1 - ind) + v * ind
 
     def export(self):
         """Export values as nested structure with entries as axis 0."""
