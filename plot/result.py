@@ -139,7 +139,7 @@ class Method:
             psplit = int(split * 100)
             ax.set_title("train={}% / test={}%".format(psplit, 100 - psplit))
 
-    def bounds(self, ax, percentiles=[99, 95, 90, 80]):
+    def bounds(self, ax, percentiles=[95, 90, 80, 50]):
         """Plot percentile absolute error bounds."""
         colors = ['C{}'.format(i) for i in range(len(percentiles))]
 
@@ -160,4 +160,3 @@ class Method:
         ax.set_xlabel("Train Split")
         ax.set_ylabel("Absolute Error Bound")
         ax.legend(loc='upper right')
-        ax.set_ylim(0, 0.5)
