@@ -109,6 +109,11 @@ class Dataset:
         """Compute RMSE log error; alias for sqrt(loss)."""
         return jnp.sqrt(self.loss(pred=pred, indices=indices))
 
+    def errors(self, pred, indices=None):
+        """Get all errors."""
+        pred, actual = self._index(pred, indices=indices)
+        return pred - actual
+
     def error(self, pred, indices=None):
         """Compute mean absolute error."""
         pred, actual = self._index(pred, indices=indices)

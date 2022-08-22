@@ -1,6 +1,7 @@
 """Result plotting."""
 
 import os
+from functools import cached_property
 
 from jax import vmap
 import numpy as np
@@ -23,12 +24,18 @@ class Result:
             np.mean(data["predictions"], axis=1),
             indices=data["test_split"]))
 
-        self.error_full = np.array(
-            np.mean(data["predictions"], axis=1) - self.dataset.matrix)
-        self.baseline_full = np.array(data["baseline"] - self.dataset.matrix)
+        self.baseline_full = np.array(vmap(self.dataset.errors)(
+            data["baseline"], indices=data["test_split"]))
+        self.error_full = np.array(vmap(self.dataset.errors)(
+            np.mean(data["predictions"], axis=1),
+            indices=data["test_split"]))
 
     def plot_training(self, ax):
-        """Plot train/val/test curves."""
+        """Plot train/val/test curves.
+
+        Each outer replicate is plotted as a separate curve, with inner
+        k-fold replicates being averaged.
+        """
         data = np.load(self.path)
 
         keys = ['train_loss', 'val_loss', 'test_loss']
@@ -41,7 +48,13 @@ class Result:
         ax.legend([Line2D([0], [0], color=c, lw=2) for c in colors], names)
 
     def compare_plot(self, ax, full=False, bins=50):
-        """Compare and plot as histogram."""
+        """Compare and plot as histogram.
+
+        If `full`, the errors in test sets across all replicates are
+        aggregated, and plotted as a histogram.
+
+        Otherwise, the mean absolute error for each replicate is plotted.
+        """
         if full:
             x1 = self.baseline_full.reshape(-1)
             x2 = self.error_full.reshape(-1)
@@ -88,7 +101,7 @@ class Method:
         ax.errorbar(x, y, yerr=yerr, **kwargs)
 
     def compare(self, ax, color='C0', baseline=False, boxplot=True):
-        """Add boxplots to axes."""
+        """Add boxplots for mean absolute error on replicates to axes."""
         data = np.array([
             (res.baseline if baseline else res.error)
             for res in self.results])
@@ -125,3 +138,26 @@ class Method:
             res.plot_training(ax, **kwargs)
             psplit = int(split * 100)
             ax.set_title("train={}% / test={}%".format(psplit, 100 - psplit))
+
+    def bounds(self, ax, percentiles=[99, 95, 90, 80]):
+        """Plot percentile absolute error bounds."""
+        colors = ['C{}'.format(i) for i in range(len(percentiles))]
+
+        per_base = np.array([np.percentile(
+            res.baseline_full, percentiles) for res in self.results])
+        per = np.array([np.percentile(
+            res.error_full, percentiles) for res in self.results])
+        sizes = [res.error_full.shape[1] for res in self.results]
+
+        for x, xb, c, p in zip(per.T, per_base.T, colors, percentiles):
+            ax.plot(x, marker='.', label="{}%".format(p), color=c)
+            ax.plot(xb, marker='.', linestyle='dashed', color=c)
+
+        ax.set_xticks(np.arange(len(self.splits)))
+        ax.set_xticklabels([
+            "{}%\nn={}".format(int(sp * 100), int(s))
+            for sp, s in zip(self.splits, sizes)])
+        ax.set_xlabel("Train Split")
+        ax.set_ylabel("Absolute Error Bound")
+        ax.legend(loc='upper right')
+        ax.set_ylim(0, 0.5)
