@@ -1,4 +1,6 @@
-results/
+results*/
+data/
+interference/
 results.tar
 
 # Byte-compiled / optimized / DLL files
