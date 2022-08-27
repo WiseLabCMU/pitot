@@ -69,7 +69,7 @@ class Session:
 
         # Summary Stats
         trace = self.get(file=file, runtime=rt)
-        y = trace.arrays(keys=["cpu_time"])['cpu_time'][2:-1]
+        y = trace.arrays(keys=["cpu_time"])['cpu_time'][1:]
         if y is not None:
             for k, v in self._stats.items():
                 try:
@@ -225,7 +225,10 @@ class Session:
             for ax, rt in zip(row, self.runtimes):
                 trace = self.get(file=file, runtime=rt)
                 if trace:
-                    _inner(ax, trace)
+                    try:
+                        _inner(ax, trace)
+                    except Exception as e:
+                        print("{} @ ({}, {})".format(str(e), file, rt))
             row[0].set_ylabel(file.split('/')[-1])
 
         for ax, rt in zip(axs[-1], self.runtimes):
