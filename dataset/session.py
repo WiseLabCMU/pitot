@@ -69,6 +69,9 @@ class Session:
 
         # Summary Stats
         trace = self.get(file=file, runtime=rt)
+        if trace is None:
+            raise KeyError("Not found: ({}, {})".format(file, rt))
+
         y = trace.arrays(keys=["cpu_time"])['cpu_time'][1:]
         if y is not None:
             for k, v in self._stats.items():
@@ -104,10 +107,13 @@ class Session:
         """
         stats = {k: [] for k in self._stats}
         for _, row in tqdm(self.manifest.iterrows(), total=len(self.manifest)):
-            _stats = self._summarize(
-                row["file"], row["runtime"], percentile=False)
-            for k, v in _stats.items():
-                stats[k].append(v)
+            try:
+                _stats = self._summarize(
+                    row["file"], row["runtime"], percentile=False)
+                for k, v in _stats.items():
+                    stats[k].append(v)
+            except KeyError as e:
+                print(e)
         for k, v in stats.items():
             self.manifest[k] = v
 
@@ -141,10 +147,13 @@ class Session:
 
         for i, file in enumerate(tqdm(self.files)):
             for j, rt in enumerate(self.runtimes):
-                summary = self._summarize(file, rt)
-                for k in self._stats:
-                    stats[k][i, j] = summary[k]
-                stats["percentile"][:, i, j] = summary["percentile"]
+                try:
+                    summary = self._summarize(file, rt)
+                    for k in self._stats:
+                        stats[k][i, j] = summary[k]
+                    stats["percentile"][:, i, j] = summary["percentile"]
+                except KeyError as e:
+                    print(e)
         if save:
             np.savez(save, **stats)
         return stats
