@@ -1,0 +1,64 @@
+"""Plot interference histograms."""
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+
+from libsilverline import ArgumentParser
+from dataset import Dataset
+
+
+def plot_interference(baseline="data.npz", data="summary.csv", out="plot.png"):
+    """Plot interference histograms by runtime.
+
+    Parameters
+    ----------
+    baseline : str
+        Path to non-interference baseline dataset.
+    data : str
+        Path to interference dataset (CSV).
+    out : str
+        Where to save plot.
+    """
+    ds = Dataset(baseline)
+    df = pd.read_csv(data)
+    df["percent"] = 100 * (np.exp(df["diff"]) - 1)
+    print("Total:", len(df))
+    print("Unique pairs:", len(df["module"].unique()))
+
+    fig, axs = plt.subplots(5, 4, figsize=(16, 16))
+
+    for rt, ax in zip(ds.runtimes, axs.reshape(-1)):
+        y = np.array(df[df['runtime'] == rt]['percent'])
+        xh = np.linspace(-20, 150, 50)
+        # xl = np.linspace(-20, 150, len(y))
+
+        ax.hist(y, bins=xh, density=True)
+        ax.set_title(rt)
+        ax.axvline(0, color='black', linestyle='--')
+        ax.set_yticks([])
+
+        # ax2 = ax.twinx()
+        # ax2.plot(xl, y, color='black', linewidth=0.5)
+        # ax2.set_ylim(3 * np.min(y) - 2 * np.max(y), np.max(y))
+        # ax2.set_yticks([])
+        # ax2.set_xticks([])
+
+    fig.tight_layout()
+    fig.savefig(out)
+
+
+def _parse():
+    p = ArgumentParser()
+    p.add_to_parser(
+        "interference", plot_interference, "interference",
+        aliases={"baseline": ["-b"], "data": ["-d"], "out": ["-o"]})
+    return p
+
+
+def _main(args):
+    plot_interference(**args["interference"])
+
+
+if __name__ == '__main__':
+    _main(_parse().parse_args())

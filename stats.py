@@ -1,16 +1,19 @@
 """Generate statistics npz file."""
 
 import numpy as np
-import pandas as pd
+from argparse import ArgumentParser
 from matplotlib import pyplot as plt
 
-
 from dataset import Session
-from parse import ArgumentParser
 
 
-def _matrix(path):
-    stats = Session(path).matrix(save="{}.npz".format(path))
+def _matrix(path, key="cpu_time", suffix=None, out=None):
+    if out is None:
+        out = path
+    if suffix is not None:
+        out = "{}_{}".format(out, suffix)
+
+    stats = Session(path).matrix(key=key, save="{}.npz".format(out))
 
     fig, axs = plt.subplots(1, 3, figsize=(12, 8))
 
@@ -33,11 +36,7 @@ def _matrix(path):
     axs[2].set_yticks([])
 
     fig.tight_layout(w_pad=0, h_pad=0)
-    fig.savefig("{}.png".format(path), dpi=100)
-
-
-def _table(path):
-    return Session(path).summary(save=path + ".csv")
+    fig.savefig("{}.png".format(out), dpi=100)
 
 
 if __name__ == '__main__':
@@ -46,13 +45,10 @@ if __name__ == '__main__':
     p.add_argument(
         "path", nargs='+', default=["data/polybench"],
         help="Directories containing data to summarize.")
-    p.add_argument(
-        "--mode", default="matrix", help="Type to compute; matrix or table.")
+    p.add_argument("--out", default=None, help="Path to save to.")
+    p.add_argument("--suffix", default=None, help="Save path suffix.")
+    p.add_argument("--key", default="cpu_time", help="Statistic of interest.")
     args = p.parse_args()
 
-    if args["mode"] == "matrix":
-        for path in args["path"]:
-            _matrix(path)
-    elif args["mode"] == "table":
-        for path in args["path"]:
-            _table(path)
+    for path in args.path:
+        _matrix(path, out=args.out, key=args.key, suffix=args.suffix)

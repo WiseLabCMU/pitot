@@ -64,7 +64,7 @@ class Session:
         else:
             return self._get(df.iloc[0])
 
-    def _summarize(self, file, rt, percentile=True):
+    def _summarize(self, file, rt, percentile=True, key="cpu_time"):
         stats = {}
 
         # Summary Stats
@@ -72,7 +72,7 @@ class Session:
         if trace is None:
             raise KeyError("Not found: ({}, {})".format(file, rt))
 
-        y = trace.arrays(keys=["cpu_time"])['cpu_time'][1:]
+        y = trace.arrays(keys=[key])[key][1:]
         if y is not None:
             for k, v in self._stats.items():
                 try:
@@ -92,13 +92,15 @@ class Session:
 
         return stats
 
-    def summary(self, save=None):
+    def summary(self, save=None, key="cpu_time"):
         """Calculate statistics in tabular form.
 
         Parameters
         ----------
         save : str or None
             If not None, save results to this file.
+        key : str
+            Key to calculate statistics for.
 
         Returns
         -------
@@ -109,7 +111,7 @@ class Session:
         for _, row in tqdm(self.manifest.iterrows(), total=len(self.manifest)):
             try:
                 _stats = self._summarize(
-                    row["file"], row["runtime"], percentile=False)
+                    row["file"], row["runtime"], percentile=False, key=key)
                 for k, v in _stats.items():
                     stats[k].append(v)
             except KeyError as e:
@@ -122,13 +124,15 @@ class Session:
 
         return self.manifest
 
-    def matrix(self, save=None):
+    def matrix(self, save=None, key="cpu_time"):
         """Calculate statistics in matrix form.
 
         Parameters
         ----------
         save : str or None
             If not None, save results to this file.
+        key : str
+            Key to calculate statistics for.
 
         Returns
         -------
@@ -148,7 +152,7 @@ class Session:
         for i, file in enumerate(tqdm(self.files)):
             for j, rt in enumerate(self.runtimes):
                 try:
-                    summary = self._summarize(file, rt)
+                    summary = self._summarize(file, rt, key=key)
                     for k in self._stats:
                         stats[k][i, j] = summary[k]
                     stats["percentile"][:, i, j] = summary["percentile"]

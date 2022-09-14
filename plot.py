@@ -1,7 +1,7 @@
 """Generate data plots."""
 
 from dataset import Session
-from parse import ArgumentParser
+from libsilverline import ArgumentParser
 
 
 def _parse():

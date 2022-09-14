@@ -1,7 +1,6 @@
 """Result plotting."""
 
 import os
-from functools import cached_property
 
 from jax import vmap
 import numpy as np
