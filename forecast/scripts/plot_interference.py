@@ -5,10 +5,12 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from libsilverline import ArgumentParser
-from dataset import Dataset
+from forecast import Dataset
 
 
-def plot_interference(baseline="data.npz", data="summary.csv", out="plot.png"):
+def plot_interference(
+        baseline="data.npz", data="summary.csv", out="",
+        mode="hist"):
     """Plot interference histograms by runtime.
 
     Parameters
@@ -16,10 +18,16 @@ def plot_interference(baseline="data.npz", data="summary.csv", out="plot.png"):
     baseline : str
         Path to non-interference baseline dataset.
     data : str
-        Path to interference dataset (CSV).
+        Path to interference dataset (CSV). The file extension `.csv` is
+        appended if not present.
     out : str
-        Where to save plot.
+        Where to save plot. If empty, uses the same base path as data.
+    mode : str
+        Plot type; hist (standard) or trace (for debugging sessions mostly)
     """
+    if not data.endswith(".csv"):
+        data = data + ".csv"
+
     ds = Dataset(baseline)
     df = pd.read_csv(data)
     df["percent"] = 100 * (np.exp(df["diff"]) - 1)
@@ -30,21 +38,20 @@ def plot_interference(baseline="data.npz", data="summary.csv", out="plot.png"):
 
     for rt, ax in zip(ds.runtimes, axs.reshape(-1)):
         y = np.array(df[df['runtime'] == rt]['percent'])
-        xh = np.linspace(-20, 150, 50)
-        # xl = np.linspace(-20, 150, len(y))
-
-        ax.hist(y, bins=xh, density=True)
         ax.set_title(rt)
-        ax.axvline(0, color='black', linestyle='--')
-        ax.set_yticks([])
 
-        # ax2 = ax.twinx()
-        # ax2.plot(xl, y, color='black', linewidth=0.5)
-        # ax2.set_ylim(3 * np.min(y) - 2 * np.max(y), np.max(y))
-        # ax2.set_yticks([])
-        # ax2.set_xticks([])
+        if mode == "hist":
+            ax.hist(y, bins=np.linspace(-20, 150, 50), density=True)
+            ax.axvline(0, color='black', linestyle='--')
+            ax.set_yticks([])
+
+        else:
+            ax.plot(y)
 
     fig.tight_layout()
+
+    if out == "":
+        out = data.replace(".csv", ".png")
     fig.savefig(out)
 
 

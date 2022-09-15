@@ -11,6 +11,19 @@ from tqdm import tqdm
 from .load import Trace
 
 
+_SHORTNAMES = {
+    "polybench": "pb",
+    "mibench": "mi",
+    "cortex": "cx",
+    "vision": "vn"
+}
+
+
+def _shortname(module):
+    _, suite, name = module.split("/")
+    return "/".join([_SHORTNAMES[suite], name.split(".")[0]])
+
+
 class Session:
     """Loader for all data traces from a specific session.
 
@@ -34,15 +47,19 @@ class Session:
     def __init__(self, dir="data"):
 
         if isinstance(dir, list):
+            assert(len(dir) > 0)
             dir = dir[0]
 
         self.dir = dir
         self.manifest = pd.read_csv(os.path.join(dir, "manifest.csv"))
+        self.manifest['file'] = self.manifest.apply(
+            lambda row: _shortname(row["file"]), axis=1)
         with open(os.path.join(dir, "metadata.json")) as f:
             self.metadata = json.load(f)
 
         self.files = self.manifest['file'].unique().astype(str)
         self.files.sort()
+
         self.runtimes = self.manifest['runtime'].unique().astype(str)
         self.runtimes.sort()
 
@@ -164,7 +181,7 @@ class Session:
 
     def plot_grid(
             self, keys=["cpu_time"], multiplier=1 / 10**6, limit_mad=5.,
-            limit_rel=0.1, save="test.png", mode='trace', dpi=100,
+            limit_rel=0.1, mode='trace', dpi=100,
             hist_width=0.5, xaxis="index", window=1):
         """Plot execution traces or histogram.
 
@@ -180,8 +197,6 @@ class Session:
         limit_rel : float
             Minimum upper and lower margin, specified relative to the median.
             If 0, no limits are applied.
-        save : str
-            If passed, save plot using plt.savefig and close immediately.
         mode : str
             Plot mode; can be 'trace' or 'hist'.
         dpi : int
@@ -234,7 +249,7 @@ class Session:
             len(self.files), len(self.runtimes),
             figsize=(2.25 * len(self.runtimes), 2 * len(self.files)))
 
-        for row, file in zip(axs, self.files):
+        for row, file in tqdm(zip(axs, self.files), total=len(self.files)):
             for ax, rt in zip(row, self.runtimes):
                 trace = self.get(file=file, runtime=rt)
                 if trace:
@@ -242,7 +257,7 @@ class Session:
                         _inner(ax, trace)
                     except Exception as e:
                         print("{} @ ({}, {})".format(str(e), file, rt))
-            row[0].set_ylabel(file.split('/')[-1])
+            row[0].set_ylabel(file)
 
         for ax, rt in zip(axs[-1], self.runtimes):
             ax.set_xlabel(rt)
@@ -250,9 +265,4 @@ class Session:
             ax.set_title(rt)
 
         fig.tight_layout(h_pad=0, w_pad=0)
-
-        if save != "":
-            fig.savefig(save, dpi=dpi)
-            plt.close(fig)
-        else:
-            return fig, axs
+        return fig, axs

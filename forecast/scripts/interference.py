@@ -6,7 +6,7 @@ import os
 from tqdm import tqdm
 
 from libsilverline import ArgumentParser
-from dataset import Dataset, Session
+from forecast import Dataset, Session
 
 
 def _load_df(path, ds, key="cpu_time"):
@@ -23,9 +23,16 @@ def _load_df(path, ds, key="cpu_time"):
             .get(module_id=row["module_id"])
             .arrays(keys=[key])[key]))
 
+    def _interferer(row):
+        modules = row["module"].split('.')
+        modules.remove(row["file"])
+        return ".".join(modules)
+
     df = session.manifest
     tqdm.pandas(desc=path)
     df["mean"] = df.progress_apply(_mean, axis=1)
+
+    df["interferer"] = df.apply(_interferer, axis=1)
     df["baseline"] = df.apply(_baseline, axis=1)
     df["diff"] = df["mean"] - df["baseline"]
     df["source"] = path
@@ -33,7 +40,7 @@ def _load_df(path, ds, key="cpu_time"):
 
 
 def summarize(
-        data="data", baseline="data.npz", out="summary.csv", key="cpu_time"):
+        data="data", baseline="data.npz", out="", key="cpu_time"):
     """Create interference summary table.
 
     Parameters
@@ -43,14 +50,29 @@ def summarize(
     baseline : str
         Baseline non-interference results.
     out : str
-        Path to save to.
+        Path to save to. If empty, uses the same base path as 'data'.
     key : str
         Key in dataset to look at.
     """
     ds = Dataset(baseline)
     paths = [os.path.join(data, p) for p in os.listdir(data)]
     dfs = [_load_df(p, ds, key=key) for p in paths if os.path.isdir(p)]
-    pd.concat(dfs).to_csv(out, index=False)
+
+    if out == "":
+        out = data
+    res = pd.concat(dfs)
+    res.to_csv(out + ".csv", index=False)
+
+    file_idx = res.apply(lambda row: ds.modules_dict[row["file"]], axis=1)
+    if_idx = res.apply(lambda row: ds.modules_dict[row["interferer"]], axis=1)
+    rt_idx = res.apply(lambda row: ds.runtimes_dict[row["runtime"]], axis=1)
+    np.savez(
+        out + ".npz",
+        module=np.array(file_idx).astype(np.int16),
+        interferer=np.array(if_idx).astype(np.int16),
+        runtime=np.array(rt_idx).astype(np.int8),
+        mean=np.array(res["mean"]),
+        baseline=np.array(res["baseline"]))
 
 
 def _parse():
@@ -63,7 +85,3 @@ def _parse():
 
 def _main(args):
     summarize(**args["summarize"])
-
-
-if __name__ == '__main__':
-    _main(_parse().parse_args())

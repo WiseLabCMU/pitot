@@ -8,9 +8,8 @@ from collections import namedtuple
 from argparse import ArgumentParser
 import optax
 
-from dataset import Dataset
-from prediction import CrossValidationTrainer
-from prediction.models import *
+from forecast import Dataset, CrossValidationTrainer
+from forecast.prediction.models import *
 
 
 Method = namedtuple(

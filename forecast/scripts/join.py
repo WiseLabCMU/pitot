@@ -46,8 +46,7 @@ def _load_side_info(sources, keys, values):
     return res
 
 
-if __name__ == '__main__':
-    args = _parse().parse_args()
+def _main(args):
 
     data, runtimes, modules = _load_matrix(args.datasets)
     opcodes = _load_side_info(args.opcodes, "files", "opcodes")

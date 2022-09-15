@@ -42,7 +42,7 @@ class Dataset:
 
         # Matrix
         self._data_key = key(data)
-        self.matrix = jnp.log(self._data_key) - jnp.log(offset)
+        self.matrix = np.log(self._data_key) - np.log(offset)
         self.shape = self.matrix.shape
         self.size = np.prod(self.shape)
 

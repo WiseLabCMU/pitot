@@ -30,14 +30,15 @@ def _loghz(x):
 def _parse():
     p = argparse.ArgumentParser()
     p.add_argument(
-        "--dir", default="data/runtimes.json", help="Dataset directory.")
+        "--path", default="data/runtimes.json",
+        help="Input runtimes.json file.")
     p.add_argument(
-        "--out", default="data/runtimes.npz", help="Output file.")
+        "--out", default="data/runtimes.npz", help="Output runtimes.npz file.")
     return p
 
 
 def _main(args):
-    with open(args.dir) as f:
+    with open(args.path) as f:
         data = json.load(f)
 
     architectures = np.unique(
@@ -65,9 +66,4 @@ def _main(args):
         args.out,
         data=np.array([_transform(v['platform']) for _, v in data.items()]),
         runtimes=np.array([v['name'] for _, v in data.items()]),
-        cpus=np.array(architectures)
-    )
-
-
-if __name__ == '__main__':
-    _main(_parse().parse_args())
+        cpus=np.array(architectures))
