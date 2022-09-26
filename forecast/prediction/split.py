@@ -1,6 +1,5 @@
 """Train/Val/Test Splitting."""
 
-from jax import vmap
 from jax import numpy as jnp
 from jax import random as random
 

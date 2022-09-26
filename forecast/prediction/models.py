@@ -1,77 +1,66 @@
-"""Models."""
+"""Matrix Factorization Models."""
 
-import jax
 from functools import partial
 from jax import numpy as jnp
 import haiku as hk
 
-from .modules import (
-    LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp)
+from .modules import LearnedFeatures, HybridEmbedding
 
 
 class MFBase(hk.Module):
-    """Matrix Factorization base class."""
+    """Matrix Factorization base class.
 
-    def __call__(self, x):
-        """<module(i), runtime(j)>."""
-        if x is None:
-            return self._predict_full()
-        else:
-            return self._predict(x)
-
-
-class MatrixFactorization(MFBase):
-    """Generic matrix factorization."""
+    Parameters
+    ----------
+    alpha : float
+        Multiplier applied to prediction when predicting baseline residuals.
+    shape : (int, int)
+        (N_m, N_d) size.
+    """
 
     def __init__(
-            self, module, runtime, shape=(10, 10), logsumexp=False, name=None):
+            self, alpha=0.001, shape=(10, 10), name="Matrix Factorization"):
         super().__init__(name=name)
-
-        self.module = module(samples=shape[0], name="module")
-        self.runtime = runtime(samples=shape[1], name="runtime")
-
-        self.logsumexp = logsumexp
         self.shape = shape
+        self.alpha = alpha
 
-    def _predict(self, x):
-        ui = self.module(x[:, 0])
-        vj = self.runtime(x[:, 1])
-        if self.logsumexp:
-            return jnp.log(jnp.sum(jnp.exp(ui + vj), axis=1))
+    def __call__(self, ij, ip=None, baseline=None):
+        """Dispatcher.
+
+        Parameters
+        ----------
+        ij : jnp.array(int[:, 2]) or None
+            If not None, generates predictions for the given indices;
+            otherwise, generate predicted full non-interference matrix.
+        ip : jnp.array(int[])
+            Optional interference indices.
+        baseline : jnp.array(float[N_m, N_d])
+            Baseline (non-interference, rank 1) execution time; is added to
+            the predictions.
+
+        Returns
+        -------
+        jnp.array(float[:]) or full results
+            Predicted execution time C_hat_ij for each ``ij`` pair
+            (with optional ``ip`` interferer). If ``ij = None``, then returns
+            full results with a (C_hat, m, d) triple.
+        """
+        if ij is None:
+            pred = self._predict_full()
+            if baseline is not None:
+                pred = pred * self.alpha + baseline
         else:
-            return jnp.sum(ui * vj, axis=1)
+            pred = self._predict(ij, ip=ip)
+            if baseline is not None:
+                pred = pred * self.alpha + baseline[ij[:, 0], ij[:, 1]]
+        return pred
 
     def _predict_full(self):
-        module_emb = self.module(jnp.arange(self.shape[0]))
-        runtime_emb = self.runtime(jnp.arange(self.shape[1]))
-        if self.logsumexp:
-            return jnp.log(jnp.sum(
-                jnp.exp(
-                    module_emb.reshape(self.shape[0], 1, -1)
-                    + runtime_emb.reshape(1, self.shape[1], -1)),
-                axis=2)), module_emb, runtime_emb
-        else:
-            return (
-                jnp.matmul(module_emb, runtime_emb.T), module_emb, runtime_emb)
+        """Generate full matrix predictions.
 
-
-class MLPOnly(MFBase):
-    """Prediction using a MLP without matrix factorization."""
-
-    def __init__(self, module_data=None, runtime_data=None, shape=(10, 10)):
-        super().__init__(name="simple_mlp")
-        self.module_data = SideInformation(module_data, name="module")
-        self.runtime_data = SideInformation(runtime_data, name="runtime")
-        self.shape = shape
-
-        self.mlp = simple_mlp([64, 32, 1], jax.nn.tanh, name="mlp")
-
-    def _predict(self, x):
-        features = jnp.concatenate(
-            [self.module_data(x[:, 0]), self.runtime_data(x[:, 1])], axis=1)
-        return self.mlp(features).reshape(-1)
-
-    def _predict_full(self):
+        Embeddings are not available by default; specific implementations must
+        specify how to compute them.
+        """
         x, y = jnp.meshgrid(
             jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
         coords = jnp.stack([x.reshape(-1), y.reshape(-1)]).T
@@ -81,33 +70,82 @@ class MLPOnly(MFBase):
             0.0, 0.0)
 
 
-def linear(dim=32, shape=(10, 10), scale=0.01):
-    """Linear matrix factorization: y_ij = <u_i, v_j>."""
+class MatrixFactorization(MFBase):
+    """Matrix factorization."""
+
+    def __init__(self, M, D, **kwargs):
+        super().__init__(**kwargs)
+
+        self.M = M(samples=self.shape[0], name="M")
+        self.D = D(samples=self.shape[1], name="D")
+
+    def _predict(self, ij, ip=None):
+        m_i = self.M(ij[:, 0])
+        d_j = self.D(ij[:, 1])
+        return jnp.sum(m_i * d_j, axis=1)
+
+    def _predict_full(self):
+        M = self.M(None)
+        D = self.D(None)
+        return jnp.matmul(M, D.T), M, D
+
+
+class MatrixFactorizationIF(MatrixFactorization):
+    """Matrix factorization with interference support."""
+
+    def __init__(self, M, D, **kwargs):
+        super().__init__(M, D, **kwargs)
+
+    def _predict(self, ij, ip=None):
+        m_i = self.M(ij[:, 0])
+        d_stack = self.D(ij[:, 1])
+        dim = m_i.shape[-1]
+        d_j = d_stack[:, :dim]
+
+        pred = jnp.sum(m_i * d_j, axis=1)
+
+        if ip is not None:
+            v_s = d_stack[:, dim:2 * dim]
+            v_g = d_stack[2 * dim:]
+
+            susceptibility = jnp.sum(m_i * v_s, axis=1)
+            magnitude = jnp.sum(self.M(ip) * v_g, axis=1)
+            pred += jnp.sum(susceptibility * magnitude)
+
+        return pred
+
+
+def linear(alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
+    """Linear matrix factorization: C_ij = <u_m^{(i)}, u_d^{(j)}>."""
     return MatrixFactorization(
         partial(LearnedFeatures, dim=dim, scale=scale),
         partial(LearnedFeatures, dim=dim, scale=scale),
-        shape=shape, logsumexp=False, name="linear")
+        alpha=alpha, shape=shape, name="linear")
 
 
-def logsumexp(dim=32, shape=(10, 10), scale=0.01):
-    """Linear matrix factorization: y_ij = log(sum(exp(u_i + v_j)))."""
-    return MatrixFactorization(
-        partial(LearnedFeatures, dim=dim, scale=scale),
-        partial(LearnedFeatures, dim=dim, scale=scale),
-        shape=shape, logsumexp=True, name="linear")
+def _feature_embedding(data, layers=[], dim=4, scale=0.01):
+    """Create feature embedding."""
+    if data is None:
+        return partial(LearnedFeatures, dim=layers[-1], scale=scale)
+    else:
+        return partial(
+            HybridEmbedding, data, layers=layers, dim=dim, scale=scale)
 
 
 def embedding(
-        runtime_data=None, module_data=None,
+        X_m=None, X_d=None, alpha=0.001,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Side Information using NN Embedding."""
-    def _features(data):
-        if data is None:
-            return partial(LearnedFeatures, dim=layers[-1], scale=scale)
-        else:
-            return partial(
-                HybridEmbedding, data, layers=layers, dim=dim, scale=scale)
-
+    _f = partial(_feature_embedding, layers=layers, dim=dim, scale=scale)
     return MatrixFactorization(
-        _features(module_data), _features(runtime_data),
-        shape=shape, logsumexp=False, name="Embedding")
+        _f(X_m), _f(X_d), alpha=alpha, shape=shape, name="embedding")
+
+
+def interference(
+        X_m=None, X_d=None, alpha=0.001,
+        shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
+    """Matrix Factorization with Interference."""
+    _f = partial(_feature_embedding, dim=dim, scale=scale)
+    return MatrixFactorizationIF(
+        _f(X_m, layers=layers), _f(X_d, layers=layers[:-1] + [layers[-1] * 3]),
+        alpha=alpha, shape=shape, name="embedding")

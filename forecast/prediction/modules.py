@@ -30,7 +30,11 @@ class LearnedFeatures(hk.Module):
         init = hk.initializers.RandomUniform(
             minval=-self.scale, maxval=self.scale)
         X = hk.get_parameter("X", shape=self.dim, init=init)
-        return X[i]
+
+        if i is None:
+            return X
+        else:
+            return X[i]
 
 
 def simple_mlp(layers, activation, name=None):
@@ -51,13 +55,12 @@ class HybridEmbedding(hk.Module):
             dim=4, samples=10, scale=1.0, name=None):
         super().__init__(name=name)
 
-        self.data = SideInformation(data, name="data")
+        self.data = SideInformation(data, name="x")
         self.learned = LearnedFeatures(
-            dim=dim, samples=samples, scale=scale, name="learned")
-        self.embedding = simple_mlp(layers, jax.nn.tanh, name="embedding")
+            dim=dim, samples=samples, scale=scale, name="u")
+        self.embedding = simple_mlp(layers, jax.nn.tanh, name="f")
 
     def __call__(self, i):
-        """MLP(data[i], features[i])."""
+        """MLP embedding f(u, x; w)."""
         return self.embedding(jnp.concatenate(
             [self.data(i), self.learned(i)], axis=1))
-        # return self.embedding(self.data(i))

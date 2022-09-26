@@ -1,15 +1,8 @@
 """Dataset for prediction."""
 
-from collections import namedtuple
-
 import numpy as np
 from jax import numpy as jnp
 from matplotlib import pyplot as plt
-
-from sklearn.decomposition import PCA
-
-
-IndexSplit = namedtuple("IndexSplit", ['train', 'test'])
 
 
 class Dataset:
@@ -21,15 +14,28 @@ class Dataset:
         Source data, or filepath to npz file containing data.
     if_data : str or dict
         Source interference data or filepath.
-    key : callable
-        Callable that fetches the target value from the archive. Should be
-        the same key that was used to make if_data.
-    val : float
-        Proportion of dataset to reserve for validation split.
-    test : float
-        Proportion of dataset to reserve for test split.
+    key : callable or str
+        Name of key or callable that fetches the target value from the archive.
+        Should be the same key that was used to make if_data.
     offset : float
         Fixed offset to apply to data (for scale normalization)
+
+    Attributes
+    ----------
+    See writeup.
+
+    matrix : jnp.array(float[N_m, N_d])
+        Non-interference data matrix.
+    interference : jnp.array(float[])
+        Execution time for interference data.
+    N_m, N_d : int
+        Number of modules, devices.
+    x_m, x_d : jnp.array(float[n_features, N_m or N_d])
+        Side information for modules, devices.
+    if_ij : jnp.array(int[:, 2])
+        Module indices and device indices (i, j) for interference data.
+    if_if : jnp.array(int[])
+        Interferer indices (i') for interference data.
     """
 
     def __init__(
@@ -41,21 +47,22 @@ class Dataset:
         self.if_data = self._load(if_data)
 
         # Matrix
-        _data_key = key(data)
-        self.matrix = jnp.log(_data_key) - jnp.log(offset)
+        self.matrix = jnp.log(self._get_key(self.data, key)) - jnp.log(offset)
         self.shape = self.matrix.shape
+        self.N_m, self.N_d = self.shape
         self.size = np.prod(self.shape)
 
         # Side information
-        self.module_data = jnp.log(data['module_data'].astype(jnp.float32) + 1)
-        self.module_data_pca = jnp.array(PCA().fit_transform(self.module_data))
-        self.runtime_data = jnp.array(data['runtime_data'])
+        self.x_m = jnp.log(data['module_data'].astype(jnp.float32) + 1)
+        self.x_d = jnp.array(data['runtime_data'])
 
         # Interference
-        self.if_modules = jnp.array(self.if_data["module"])
-        self.if_interferer = jnp.array(self.if_data["interferer"])
-        self.if_runtimes = jnp.array(self.if_data["runtime"])
-        self.if_data = jnp.log(self.if_data["mean"]) - jnp.log(offset)
+        self.if_ij = jnp.stack(
+            [self.if_data["module"], self.if_data["runtime"]]).T
+        self.if_ip = jnp.array(self.if_data["interferer"])
+        self.interference = jnp.log(
+            self._get_key(self.if_data, key)) - jnp.log(offset)
+        self.if_size = self.interference.shape[0]
 
         # Metadata
         self.modules = data['modules']
@@ -72,10 +79,19 @@ class Dataset:
         else:
             return path
 
+    @staticmethod
+    def _get_key(data, key):
+        if callable(key):
+            return key(data)
+        elif isinstance(key, str):
+            return data[key]
+        else:
+            raise TypeError(
+                "Key {} is not callable or string index.".format(key))
+
     def grid(self):
         """Create (x, y) grid pairs."""
-        x, y = jnp.meshgrid(
-            np.arange(self.shape[0]), jnp.arange(self.shape[1]))
+        x, y = jnp.meshgrid(np.arange(self.N_m), jnp.arange(self.N_d))
         return jnp.stack([x.reshape(-1), y.reshape(-1)]).T
 
     def to_mask(self, xy):

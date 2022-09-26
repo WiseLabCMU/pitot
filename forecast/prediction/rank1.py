@@ -19,9 +19,9 @@ class Rank1:
     tol : float
         Convergence criteria on l2 norm; stops when all replicates converge.
 
-        NOTE: Since jax uses 32-bit float by default, if the dataset magnitude is
-        around ~1e-1 - 1e1, the best precision for the delta will be ~1e-7, so
-        tol should be >>1e-7.
+    NOTE: Since jax uses 32-bit float by default, if the dataset magnitude is
+    around ~1e-1 - 1e1, the best precision for the delta will be ~1e-7, so
+    tol should be >>1e-7.
     """
 
     Model = namedtuple("Rank1Model", ["x", "y"])
