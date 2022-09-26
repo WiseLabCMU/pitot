@@ -7,8 +7,7 @@ from jax import random as random
 
 def keys(key, n):
     """Split PRNGKey into jnp.array of keys."""
-    _, *keys = random.split(key, n + 1)
-    return jnp.array(keys)
+    return jnp.array(random.split(key, n))
 
 
 def diagonal(dims, offset=0):

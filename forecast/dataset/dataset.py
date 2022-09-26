@@ -13,16 +13,17 @@ IndexSplit = namedtuple("IndexSplit", ['train', 'test'])
 
 
 class Dataset:
-    """Dataset.
+    """Matrix Factorization Dataset.
 
     Parameters
     ----------
     data : str or dict
         Source data, or filepath to npz file containing data.
+    if_data : str or dict
+        Source interference data or filepath.
     key : callable
-        Callable that fetches the target value from the archive.
-    device : torch.device
-        Device to place data on.
+        Callable that fetches the target value from the archive. Should be
+        the same key that was used to make if_data.
     val : float
         Proportion of dataset to reserve for validation split.
     test : float
@@ -32,17 +33,16 @@ class Dataset:
     """
 
     def __init__(
-            self, data="data.npz", key=lambda x: x['mean'], device=None,
-            offset=1.):
+            self, data="data.npz", if_data="if.npz",
+            key=lambda x: x['mean'], offset=1.):
 
         # Data
-        if isinstance(data, str):
-            data = dict(np.load(data))
-        self.data = data
+        self.data = self._load(data)
+        self.if_data = self._load(if_data)
 
         # Matrix
-        self._data_key = key(data)
-        self.matrix = np.log(self._data_key) - np.log(offset)
+        _data_key = key(data)
+        self.matrix = jnp.log(_data_key) - jnp.log(offset)
         self.shape = self.matrix.shape
         self.size = np.prod(self.shape)
 
@@ -51,11 +51,11 @@ class Dataset:
         self.module_data_pca = jnp.array(PCA().fit_transform(self.module_data))
         self.runtime_data = jnp.array(data['runtime_data'])
 
-        # Send to GPU if applicable
-        if device is not None:
-            self._matrix = self.matrix.to(device)
-            self._module_data = self.module_data.to(device)
-            self._runtime_data = self.runtime_data.to(device)
+        # Interference
+        self.if_modules = jnp.array(self.if_data["module"])
+        self.if_interferer = jnp.array(self.if_data["interferer"])
+        self.if_runtimes = jnp.array(self.if_data["runtime"])
+        self.if_data = jnp.log(self.if_data["mean"]) - jnp.log(offset)
 
         # Metadata
         self.modules = data['modules']
@@ -64,6 +64,13 @@ class Dataset:
         self.runtimes_dict = {r: i for i, r in enumerate(self.runtimes)}
         self.cpu_names = data['cpu_names']
         self.opcode_names = data['opcode_names']
+
+    @staticmethod
+    def _load(path):
+        if isinstance(path, str):
+            return dict(np.load(path))
+        else:
+            return path
 
     def grid(self):
         """Create (x, y) grid pairs."""
@@ -134,3 +141,5 @@ class Dataset:
         ax.set_xticks([])
         ax.set_yticks(np.arange(len(self.runtimes)))
         ax.set_yticklabels(self.runtimes)
+
+        return ax

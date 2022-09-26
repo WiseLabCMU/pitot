@@ -89,7 +89,7 @@ class Session:
         if trace is None:
             raise KeyError("Not found: ({}, {})".format(file, rt))
 
-        y = trace.arrays(keys=[key])[key][1:]
+        y = trace.arrays(keys=[key])[key][2:]
         if y is not None:
             for k, v in self._stats.items():
                 try:
@@ -215,9 +215,9 @@ class Session:
                 df = trace.dataframe(keys=keys)
             else:
                 df = trace.dataframe(keys=keys + ["start_time"])
-                x = (df["start_time"][1:-1] - df["start_time"][0]) / 10**9
+                x = (df["start_time"][2:] - df["start_time"][0]) / 10**9
 
-            yy = np.array([df[k][1:-1] * multiplier for k in keys])
+            yy = np.array([df[k][2:] * multiplier for k in keys])
             mm = np.median(yy, axis=1)
 
             if mode == 'trace':

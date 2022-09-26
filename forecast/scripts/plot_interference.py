@@ -10,7 +10,7 @@ from forecast import Dataset
 
 def plot_interference(
         baseline="data.npz", data="summary.csv", out="",
-        mode="hist"):
+        mode="hist", left=-25.0, right=150.0):
     """Plot interference histograms by runtime.
 
     Parameters
@@ -24,6 +24,10 @@ def plot_interference(
         Where to save plot. If empty, uses the same base path as data.
     mode : str
         Plot type; hist (standard) or trace (for debugging sessions mostly)
+    left : float
+        Left xlim.
+    right : float
+        Right xlim.
     """
     if not data.endswith(".csv"):
         data = data + ".csv"
@@ -41,7 +45,7 @@ def plot_interference(
         ax.set_title(rt)
 
         if mode == "hist":
-            ax.hist(y, bins=np.linspace(-20, 150, 50), density=True)
+            ax.hist(y, bins=np.linspace(left, right, 50), density=True)
             ax.axvline(0, color='black', linestyle='--')
             ax.set_yticks([])
 

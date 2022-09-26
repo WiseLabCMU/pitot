@@ -98,7 +98,7 @@ class CrossValidationTrainer:
     def _epoch(self, key, params, opt, train, val, test=None, baseline=None):
         """Single epoch for a single replicate."""
         epoch_loss = 0.
-        for ki in random.split(key, self.epoch_size + 1)[1:]:
+        for ki in random.split(key, self.epoch_size):
             loss, params, opt = self.step(ki, params, opt, train, baseline)
             epoch_loss += loss
 
@@ -115,11 +115,11 @@ class CrossValidationTrainer:
         """Train model for a single swarm of k-CV replicates."""
         epoch_func = vmap(partial(self._epoch, test=test, baseline=baseline))
 
-        _, k1, k2 = random.split(key, 3)
+        k1, k2 = random.split(key, 2)
 
         params, opt_state = vmap(self._init)(split.keys(k1, self.k), train)
 
-        iterator = random.split(k2, self.epochs + 1)[1:]
+        iterator = random.split(k2, self.epochs)
         if tqdm:
             iterator = tqdm(iterator)
 
