@@ -55,7 +55,8 @@ class CrossValidationTrainer:
     Replicate = namedtuple("Replicate", ["baseline", "splits_mf", "splits_if"])
     Splits = namedtuple("Splits", ["train", "val", "test"])
     Checkpoint = namedtuple(
-        "Checkpoint", ["train", "val", "test", "pred", "module", "runtime"])
+        "Checkpoint",
+        ["train", "losses", "C_hat", "M", "D"])
 
     def __init__(
             self, dataset, model, optimizer=None, beta=(1.0, 1.0),
@@ -83,6 +84,7 @@ class CrossValidationTrainer:
         self.k = k
 
         self.step = jax.jit(self._step) if jit else self._step
+        self.val = jax.jit(self._val) if jit self.self._val
         self.cpu = jax.devices('cpu')[0] if cpu is None else cpu
 
     def _init(self, key, train):
@@ -106,6 +108,19 @@ class CrossValidationTrainer:
         params = optax.apply_updates(state.params, updates)
         return loss, self.TrainState(params=params, opt_state=opt_state)
 
+    def _val(self, C_hat, state, replicate):
+        """Validation losses."""
+        return {
+            "mf_val": self.dataset.loss(
+                C_hat, indices=replicate.splits_mf.val),
+            "mf_test": self.dataset.loss(
+                C_hat, indices=replicate.splits_mf.test),
+            "if_val": self.obj_mf.loss_split(
+                state.params, replicate.baseline, replicate.splits_mf.val),
+            "if_test": self.obj_mf.loss_split(
+                state.params, replicate.baseline, replicate.splits_if.test)
+        }
+
     def _epoch(self, key, state, replicate):
         """Single epoch for a single replicate."""
         epoch_loss = 0.
@@ -115,7 +130,76 @@ class CrossValidationTrainer:
 
         C_hat, M, D = self.model.apply(
             state.params, None, baseline=replicate.baseline)
+        losses = self.val(C_hat, state, replicate)
+        return state, self.Checkpoint(
+            train=epoch_loss / self.epoch_size, losses=losses,
+            C_hat=C_hat, M=M, D=D)
 
-        return self.Checkpoint(
-            train=epoch_loss / self.epoch_size,
-        )
+    def train(self, key, replicate, tqdm=None):
+        """Train model for a single swarm of k-CV replicates."""
+        epoch_func = vmap(
+            self._epoch, in_axes=(0, 0, self.Replicate(None, 0, 0)))
+
+        k1, k2 = random.split(key, 2)
+        state = vmap(self._init_)(split.keys(k1, self.k), replicate.if_train)
+
+        iterator = random.split(k2, self.epochs)
+        if tqdm is not None:
+            iterator = tqdm(iterator)
+
+        history = History(cpu=self.cpu)
+        for ki in iterator:
+            state, epoch = epoch_func(split.keys(ki, self.k), state, replicate)
+
+            history.log(train=epoch.train, **epoch.losses)
+            history.update(
+                jnp.mean(epoch.losses["if_val"] + epoch.losses("mf_val")),
+                C_hat=epoch.C_hat, M=epoch.M, D=epoch.D)
+
+        return history.export()
+
+    def train_replicates(self, key=42, p=0.25, do_baseline=True, tqdm=None):
+        """Train replicates.
+
+        Parameters
+        ----------
+        key : jax.random.PRNGKey or int.
+            Root random key; if int, creates one.
+        p : float
+            Target sparsity level (proportion of train+val set).
+        do_baseline : bool
+            Use baseline as starting point, and fit residuals only.
+        tqdm : tqdm.tqdm or tqdm.notebook.tqdm
+            Progress bar to use during training, if present.
+
+        Returns
+        -------
+        dict
+            Losses by epoch and parameters; also includes splits.
+            Keys with shape:
+            - train, mf_val, mf_test, if_val, mf_test: (replicates, k, epochs)
+            - train_split, val_split: (replicates, k, samples, 2)
+            - test_split: (replicates, samples, 2)
+            - pred: (replicates, epochs, modules, runtimes)
+            - baseline: (replicates, modules, runtimes)
+        """
+        # Create key
+        if isinstance(key, int):
+            key = random.PRNGKey(key)
+
+        # Generate train/test
+        train_mf, test_mf = self.obj_mf.split()
+
+        # Have to do this step outside because fit synchronizes globally
+        if do_baseline:
+            baseline = Rank1(self.dataset).fit_predict(train_mf)
+        else:
+            baseline = jnp.zeros([self.replicates] + list(self.dataset.shape))
+
+        # Generate train/val/test for full method
+        train_mf, val_mf = vmap(partial(
+            split.crossval, split=self.k
+        ))(split.keys(key, train_mf.shape[0]), train_mf)
+
+        # Todo: refactor split to include execution time
+        # (operate over abstract data[])
