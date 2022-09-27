@@ -6,7 +6,7 @@ from collections import namedtuple
 
 
 class Rank1:
-    """Rank 1 baseline model.
+    """Rank 1 baseline matrix factorization model Y_ij = x[i] + j[j].
 
     Parameters
     ----------
@@ -24,7 +24,6 @@ class Rank1:
     tol should be >>1e-7.
     """
 
-    Model = namedtuple("Rank1Model", ["x", "y"])
     Problem = namedtuple("Rank1Problem", ["mask", "N", "M"])
 
     def __init__(self, dataset, init_val=0., max_iter=100, tol=1e-5):
@@ -43,32 +42,30 @@ class Rank1:
         )
 
         # Initial state
-        state = self.Model(
-            jnp.ones(self.dataset.shape[0]) * self.init_val,
-            jnp.ones(self.dataset.shape[1]) * self.init_val)
+        x = jnp.ones(self.dataset.shape[0]) * self.init_val
+        y = jnp.ones(self.dataset.shape[1]) * self.init_val
 
-        return problem, state
+        return problem, x, y
 
-    def iter(self, problem, state):
+    def iter(self, problem, x, y):
         """Single alternating minimization iteration."""
-        x = jnp.sum(
-            problem.mask * (self.dataset.matrix - state.y.reshape(1, -1)),
+        x_new = jnp.sum(
+            problem.mask * (self.dataset.matrix - y.reshape(1, -1)),
             axis=1) / problem.N
-        y = jnp.sum(
-            problem.mask * (self.dataset.matrix - x.reshape(-1, 1)),
+        y_new = jnp.sum(
+            problem.mask * (self.dataset.matrix - x_new.reshape(-1, 1)),
             axis=0) / problem.M
 
         l2_delta = jnp.sqrt(
-            jnp.sum(jnp.square(x - state.x))
-            + jnp.sum(jnp.square(y - state.y)))
+            jnp.sum(jnp.square(x_new - x)) + jnp.sum(jnp.square(y_new - y)))
 
-        return l2_delta, self.Model(x, y)
+        return l2_delta, x_new, y_new
 
-    def predict(self, state):
+    def predict(self, x, y):
         """Generate predictions."""
-        def _predict(x, y):
-            return x.reshape(-1, 1) + y.reshape(1, -1)
-        return vmap(_predict)(state.x, state.y)
+        def _predict(_x, _y):
+            return _x.reshape(-1, 1) + _y.reshape(1, -1)
+        return vmap(_predict)(x, y)
 
     def fit(self, train):
         """Fit on training split; returns parameters.
@@ -76,11 +73,11 @@ class Rank1:
         NOTE: This method MUST be performed at the highest level, i.e. cannot
         be vmapped, since it contains a break for the convergence criteria.
         """
-        problem, state = vmap(self.init)(train)
+        problem, x, y = vmap(self.init)(train)
         _iter = jit(vmap(self.iter))
 
         for _ in range(self.max_iter):
-            l2_delta, state = _iter(problem, state)
+            l2_delta, x, y = _iter(problem, x, y)
             if jnp.all(l2_delta < self.tol):
                 break
         else:
@@ -88,9 +85,4 @@ class Rank1:
                 "Convergence warning: l2_delta={} after {} iterations; "
                 "Increase tol or max_iter.".format(
                     l2_delta[l2_delta > self.tol], self.max_iter))
-        return state
-
-    def fit_predict(self, train):
-        """Fit and return prediction."""
-        params = self.fit(train)
-        return self.predict(params)
+        return x, y

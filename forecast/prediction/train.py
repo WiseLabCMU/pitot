@@ -5,7 +5,7 @@ from functools import partial
 
 import jax
 from jax import numpy as jnp
-from jax import random, value_and_grad, vmap
+from jax import random, value_and_grad, vmap, jit
 
 import optax
 import haiku as hk
@@ -44,27 +44,21 @@ class CrossValidationTrainer:
         Number of replicates to train.
     k : int
         Number of folds for cross validation.
-    jit : bool
-        Use jit on training step. Will be very slow if False -- should only
-        disable jit for debugging!
     cpu : jaxlib.xla_extension.Device
         CPU to use to save data. If None, uses first CPU (jax.devices('cpu')).
     """
 
     TrainState = namedtuple("TrainState", ["params", "opt_state"])
-    Replicate = namedtuple("Replicate", ["baseline", "splits_mf", "splits_if"])
+    Replicate = namedtuple(
+        "Replicate", ["m_bar, d_bar", "splits_mf", "splits_if"])
     Splits = namedtuple("Splits", ["train", "val", "test"])
-    Checkpoint = namedtuple(
-        "Checkpoint",
-        ["train", "losses", "C_hat", "M", "D"])
 
     def __init__(
-            self, dataset, model, optimizer=None, beta=(1.0, 1.0),
-            epochs=10, epoch_size=100, batch=64, replicates=100,
-            k=25, jit=True, cpu=None):
+            self, dataset, model, optimizer=None, beta=(1.0, 1.0), epochs=10,
+            epoch_size=100, batch=64, replicates=100, k=25, cpu=None):
 
-        def _forward(x):
-            return model()(x)
+        def _forward(*args, **kwargs):
+            return model()(*args, **kwargs)
 
         self.model = hk.without_apply_rng(hk.transform(_forward))
         self.dataset = dataset
@@ -82,9 +76,6 @@ class CrossValidationTrainer:
 
         self.replicates = replicates
         self.k = k
-
-        self.step = jax.jit(self._step) if jit else self._step
-        self.val = jax.jit(self._val) if jit self.self._val
         self.cpu = jax.devices('cpu')[0] if cpu is None else cpu
 
     def _init(self, key, train):
@@ -93,52 +84,54 @@ class CrossValidationTrainer:
         opt_state = self.optimizer.init(params)
         return self.TrainState(params=params, opt_state=opt_state)
 
-    def _step(self, key, state, replicate):
+    @jit
+    def step(self, key, state, replicate):
         """Single training step."""
-        def _loss_func(key, params, baseline, train_mf, train_if):
+        # Close over splits, m_bar, d_bar so they aren't included in
+        # value_and_grad.
+        def _loss_func(key, params):
             k1, k2 = random.split(key, 2)
             return (
-                self.obj_mf.sample_loss(k1, params, baseline, train_mf)
-                + self.obj_if.sample_loss(k2, params, baseline, train_if))
+                self.obj_mf.sample_loss(
+                    k1, params, replicate.splits_mf.train,
+                    m_bar=replicate.m_bar, d_bar=replicate.d_bar)
+                + self.obj_if.sample_loss(
+                    k2, params, replicate.splits_if.train,
+                    m_bar=replicate.m_bar, d_bar=replicate.d_bar))
 
-        loss, grads = value_and_grad(_loss_func, allow_int=True)(
-            key, state.params, replicate.baseline,
-            replicate.splits_mf.train, replicate.splits_if.train)
+        loss, grads = value_and_grad(_loss_func)(key, state.params)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
         return loss, self.TrainState(params=params, opt_state=opt_state)
 
-    def _val(self, C_hat, state, replicate):
-        """Validation losses."""
-        return {
-            "mf_val": self.dataset.loss(
-                C_hat, indices=replicate.splits_mf.val),
-            "mf_test": self.dataset.loss(
-                C_hat, indices=replicate.splits_mf.test),
-            "if_val": self.obj_mf.loss_split(
-                state.params, replicate.baseline, replicate.splits_mf.val),
-            "if_test": self.obj_mf.loss_split(
-                state.params, replicate.baseline, replicate.splits_if.test)
-        }
-
-    def _epoch(self, key, state, replicate):
+    def epoch_train(self, key, state, replicate):
         """Single epoch for a single replicate."""
         epoch_loss = 0.
         for ki in random.split(key, self.epoch_size):
             loss, state = self.step(ki, state, replicate)
             epoch_loss += loss
+        return epoch_loss / self.epoch_size, state
 
-        C_hat, M, D = self.model.apply(
-            state.params, None, baseline=replicate.baseline)
-        losses = self.val(C_hat, state, replicate)
-        return state, self.Checkpoint(
-            train=epoch_loss / self.epoch_size, losses=losses,
-            C_hat=C_hat, M=M, D=D)
+    def epoch_val(self, state, replicate):
+        """Handle epoch checkpointing."""
+        checkpoint = self.model.apply(
+            state.params,
+            ij=self.dataset.if_ij, ip=self.dataset.if_ip,
+            full=True, m_bar=replicate.m_bar, d_bar=replicate.d_bar)
+        losses = {
+            "if_val": self.obj_if(checkpoint, replicate.splits_if.val),
+            "if_test": self.obj_if(checkpoint, replicate.splits_if.test),
+            "mf_val": self.obj_mf(checkpoint, replicate.splits_mf.val),
+            "mf_val": self.obj_mf(checkpoint, replicate.splits_mf.test),
+        }
+        return losses, checkpoint
 
     def train(self, key, replicate, tqdm=None):
         """Train model for a single swarm of k-CV replicates."""
-        epoch_func = vmap(
-            self._epoch, in_axes=(0, 0, self.Replicate(None, 0, 0)))
+        train_func = vmap(
+            self.epoch_train, in_axes=(0, 0, self.Replicate(None, None, 0, 0)))
+        val_func = vmap(
+            self.epoch_val, in_axes=(0, self.Replicate(None, None, 0, 0)))
 
         k1, k2 = random.split(key, 2)
         state = vmap(self._init_)(split.keys(k1, self.k), replicate.if_train)
@@ -149,12 +142,11 @@ class CrossValidationTrainer:
 
         history = History(cpu=self.cpu)
         for ki in iterator:
-            state, epoch = epoch_func(split.keys(ki, self.k), state, replicate)
+            loss, state = train_func(split.keys(ki, self.k), state, replicate)
+            losses, checkpoint = val_func(state, replicate)
 
-            history.log(train=epoch.train, **epoch.losses)
-            history.update(
-                jnp.mean(epoch.losses["if_val"] + epoch.losses("mf_val")),
-                C_hat=epoch.C_hat, M=epoch.M, D=epoch.D)
+            history.log(train=loss, **losses)
+            history.update(**checkpoint)
 
         return history.export()
 
@@ -171,17 +163,6 @@ class CrossValidationTrainer:
             Use baseline as starting point, and fit residuals only.
         tqdm : tqdm.tqdm or tqdm.notebook.tqdm
             Progress bar to use during training, if present.
-
-        Returns
-        -------
-        dict
-            Losses by epoch and parameters; also includes splits.
-            Keys with shape:
-            - train, mf_val, mf_test, if_val, mf_test: (replicates, k, epochs)
-            - train_split, val_split: (replicates, k, samples, 2)
-            - test_split: (replicates, samples, 2)
-            - pred: (replicates, epochs, modules, runtimes)
-            - baseline: (replicates, modules, runtimes)
         """
         # Create key
         if isinstance(key, int):
@@ -190,11 +171,16 @@ class CrossValidationTrainer:
         # Generate train/test
         train_mf, test_mf = self.obj_mf.split()
 
+        # TODO TODO TODO
+
         # Have to do this step outside because fit synchronizes globally
         if do_baseline:
-            baseline = Rank1(self.dataset).fit_predict(train_mf)
+            _baseline = Rank1(self.dataset)
+            m_bar, d_bar = _baseline.fit(train_mf)
+            C_bar = _baseline.predict(m_bar, d_bar)
         else:
-            baseline = jnp.zeros([self.replicates] + list(self.dataset.shape))
+            x = jnp.zeros(self.dataset.shape[0])
+            y = jnp.zeros(self.dataset.shape[1])
 
         # Generate train/val/test for full method
         train_mf, val_mf = vmap(partial(
