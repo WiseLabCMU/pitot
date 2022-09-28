@@ -74,6 +74,11 @@ class CrossValidationTrainer:
         self.k = k
         self.cpu = jax.devices('cpu')[0] if cpu is None else cpu
 
+        self.Splits_vmap = self.Splits(train=0, val=0, test=None)
+        self.Replicate_vmap = self.Replicate(
+            m_bar=None, d_bar=None,
+            splits_mf=self.Splits_vmap, splits_if=self.Splits_vmap)
+
     def _init(self, key, train):
         """Initialize model parameters and optimization state."""
         params = self.model.init(key, train[:1])
@@ -84,21 +89,18 @@ class CrossValidationTrainer:
     def step(self, key, state, replicate):
         """Single training step."""
         k1, k2 = random.split(key, 2)
-        ij = split.batch(k1, replicate.splits_mf, batch=self.batch[0])
-        ijk_idx = split.batch(k2, replicate.splits_if, batch=self.batch[1])
-        batch = jnp.concatenate([ij, self.dataset.if_ijk[ijk_idx]])
-        actual = (
-            self.dataset.matrix[ij[:, 0], ij[:, 1]],
-            self.dataset.interference[ijk_idx])
+        ijk_mf = split.batch(k1, replicate.splits_mf, batch=self.batch[0])
+        idx_if = split.batch(k2, replicate.splits_if, batch=self.batch[1])
+        ijk_if = self.dataset.if_ijk[idx_if]
 
         # Close over all but params so they aren't included in value_and_grad.
         def _loss_func(params):
-            pred = self.model.apply(
-                params, batch, m_bar=replicate.m_bar, d_bar=replicate.d_bar)
-            pred = (pred[:self.batch[0]], pred[self.batch[0]:])
+            pred_mf, pred_if = self.model.apply(
+                params, [ijk_mf, ijk_if],
+                m_bar=replicate.m_bar, d_bar=replicate.d_bar)
             return (
-                jnp.mean(jnp.square(actual[0] - pred[0])) * self.beta[0]
-                + jnp.mean(jnp.square(actual[1] - pred[1])) * self.beta[1])
+                self.dataset.loss(pred_mf, ijk_mf, mode="mf") * self.beta[0]
+                + self.dataset.loss(pred_if, idx_if, mode="if") * self.beta[1])
 
         loss, grads = value_and_grad(_loss_func)(state.params)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
@@ -115,24 +117,30 @@ class CrossValidationTrainer:
 
     def epoch_val(self, state, replicate):
         """Handle epoch checkpointing."""
-        checkpoint = self.model.apply(
-            state.params, ijk=self.dataset.if_ijk,
-            full=True, m_bar=replicate.m_bar, d_bar=replicate.d_bar)
-        # TODO: fix this
+        val_test = [
+            self.dataset.if_ijk[replicate.splits_if.val],
+            self.dataset.if_ijk[replicate.splits_if.test]]
+
+        (if_val, if_test), checkpoint = self.model.apply(
+            state.params, val_test, full=True,
+            m_bar=replicate.m_bar, d_bar=replicate.d_bar)
+
         losses = {
-            "if_val": self.obj_if(checkpoint, replicate.splits_if.val),
-            "if_test": self.obj_if(checkpoint, replicate.splits_if.test),
-            "mf_val": self.obj_mf(checkpoint, replicate.splits_mf.val),
-            "mf_val": self.obj_mf(checkpoint, replicate.splits_mf.test),
+            "mf_val_loss": self.dataset.loss(
+                checkpoint["C_hat"], indices=replicate.splits_mf.val),
+            "mf_test_loss": self.dataset.loss(
+                checkpoint["C_hat"], indices=replicate.splits_mf.test),
+            "if_val_loss": self.dataset.loss(
+                if_val, indices=replicate.splits_if.val, mode="if"),
+            "if_test_loss": self.dataset.loss(
+                if_test, indices=replicate.splits_if.test, mode="if")
         }
         return losses, checkpoint
 
     def train(self, key, replicate, tqdm=None):
         """Train model for a single swarm of k-CV replicates."""
-        train_func = vmap(
-            self.epoch_train, in_axes=(0, 0, self.Replicate(None, None, 0, 0)))
-        val_func = vmap(
-            self.epoch_val, in_axes=(0, self.Replicate(None, None, 0, 0)))
+        _train = vmap(self.epoch_train, in_axes=(0, 0, self.Replicate_vmap))
+        _val = vmap(self.epoch_val, in_axes=(0, self.Replicate_vmap))
 
         k1, k2 = random.split(key, 2)
         state = vmap(self._init_)(split.keys(k1, self.k), replicate.if_train)
@@ -143,11 +151,13 @@ class CrossValidationTrainer:
 
         history = History(cpu=self.cpu)
         for ki in iterator:
-            loss, state = train_func(split.keys(ki, self.k), state, replicate)
-            losses, checkpoint = val_func(state, replicate)
-
-            history.log(train=loss, **losses)
-            history.update(**checkpoint)
+            loss, state = _train(split.keys(ki, self.k), state, replicate)
+            losses, checkpoint = _val(state, replicate)
+            val = (
+                losses["mf_val_loss"] * self.beta[0]
+                + losses["if_val_loss"] * self.beta[1])
+            history.log(train_loss=loss, **losses)
+            history.update(val, **checkpoint)
 
         return history.export()
 
@@ -169,24 +179,44 @@ class CrossValidationTrainer:
         if isinstance(key, int):
             key = random.PRNGKey(key)
 
-        # Generate train/test
-        train_mf, test_mf = self.obj_mf.split()
-
-        # TODO TODO TODO
+        # Matrix Factorization Objective
+        key, k1, k2 = random.split(key, 3)
+        mf_train, mf_test = split.vmap_at_least_one(
+            k1, dim=self.dataset.shape, replicates=self.replicates,
+            train=int(self.dataset.size * p))
 
         # Have to do this step outside because fit synchronizes globally
         if do_baseline:
             _baseline = Rank1(self.dataset)
-            m_bar, d_bar = _baseline.fit(train_mf)
+            m_bar, d_bar = _baseline.fit(mf_train)
             C_bar = _baseline.predict(m_bar, d_bar)
         else:
-            x = jnp.zeros(self.dataset.shape[0])
-            y = jnp.zeros(self.dataset.shape[1])
+            m_bar = jnp.zeros(self.dataset.shape[0])
+            d_bar = jnp.zeros(self.dataset.shape[1])
+            C_bar = jnp.zeros_like(self.dataset)
 
-        # Generate train/val/test for full method
-        train_mf, val_mf = vmap(partial(
-            split.crossval, split=self.k
-        ))(split.keys(key, train_mf.shape[0]), train_mf)
+        mf_train, mf_val = split.vmap_crossval(k1, mf_train, split=self.k)
+        mf_splits = self.Splits(train=mf_train, val=mf_val, test=mf_test)
 
-        # Todo: refactor split to include execution time
-        # (operate over abstract data[])
+        # Interference Objective
+        key, k1, k2 = random.split(key, 3)
+        if_train, if_test = split.vmap_iid(
+            k2, dim=self.dataset.if_size, replicates=self.replicates,
+            train=int(self.dataset.if_size * p))
+        if_train, if_val = split.vmap_crossval(k2, if_train, split=self.k)
+        if_splits = self.Splits(train=if_train, val=if_val, test=if_test)
+
+        # Actually train
+        replicates = self.Replicate(
+            m_bar=m_bar, d_bar=d_bar, splits_mf=mf_splits, splits_if=if_splits)
+        results = vmap(partial(self.train, tqdm=tqdm))(
+            split.keys(key, self.replicates), replicates)
+
+        return {
+            # Matrix Factorization Splits
+            "mf_train": mf_train, "mf_val": mf_val, "mf_test": mf_test,
+            # Interference Splits
+            "if_train": if_train, "if_val": if_val, "if_test": if_test,
+            "C_bar": C_bar, "m_bar": m_bar, "d_bar": d_bar,
+            **results
+        }

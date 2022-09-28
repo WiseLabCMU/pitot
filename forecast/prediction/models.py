@@ -32,12 +32,14 @@ class MatrixFactorization(hk.Module):
         self.M = M(samples=shape[0], name="M")
         self.D = D(samples=shape[1], name="D")
 
-    def __call__(self, ij=None, m_bar=None, d_bar=None, full=False):
+    def __call__(self, ij, m_bar=None, d_bar=None, full=False):
         """Ordinary Matrix Factorization with External Baseline.
 
         C_ij_hat = m_bar_i + d_bar_j + m_i^Td_j.
 
         NOTE: k (column 2) of ij (ijk) is ignored.
+
+        NOTE: ij is a list of arrays.
         """
         M = self.M(None)
         D = self.D(None)
@@ -50,9 +52,10 @@ class MatrixFactorization(hk.Module):
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * jnp.matmul(M, D.T))
-            return {"C_hat": C_hat, "M": M, "D": D}
+            C_hat_ij = [C_hat[split[:, 0], split[:, 1]] for split in ij]
+            return C_hat_ij, {"C_hat": C_hat, "M": M, "D": D}
         else:
-            return vmap(_inner)(ij)
+            return [vmap(_inner)(split) for split in ij]
 
 
 class MatrixFactorizationIF(MatrixFactorization):
@@ -62,7 +65,7 @@ class MatrixFactorizationIF(MatrixFactorization):
         super().__init__(*args, **kwargs)
         self.s = s
 
-    def __call__(self, ijk=None, m_bar=None, d_bar=None, full=False):
+    def __call__(self, ijk, m_bar=None, d_bar=None, full=False):
         """Matrix Factorization with Interference.
 
         C_ijk =
@@ -88,10 +91,10 @@ class MatrixFactorizationIF(MatrixFactorization):
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * jnp.matmul(M, D.T))
-            C_hat_ijk = vmap(_inner)(ijk)
-            return {
+            C_hat_ijk = [vmap(_inner)(split) for split in ijk]
+            return C_hat_ijk, {
                 "C_hat": C_hat, "M": M, "D": D,
-                "V_s": V_s, "V_g": V_g, "C_hat_ijk": C_hat_ijk}
+                "V_s": V_s, "V_g": V_g}
         else:
             return vmap(_inner)(ijk)
 

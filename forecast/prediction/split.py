@@ -1,7 +1,8 @@
 """Train/Val/Test Splitting."""
 
+from functools import partial
 from jax import numpy as jnp
-from jax import random
+from jax import random, vmap
 
 
 def keys(key, n):
@@ -49,14 +50,20 @@ def at_least_one(key, offset=0, dim=None, train=100):
     train_0, test_0 = diagonal(dim, offset)
 
     idx = random.permutation(key, jnp.arange(test_0.shape[0]))
-    train_1 = test_0[idx[:train]]
-    test_1 = test_1[idx[train:]]
+    train_1 = test_0[idx[:train - dim[0]]]
+    test_1 = test_1[idx[train - dim[0]:]]
 
     return jnp.concatenate([train_0, train_1]), test_1
 
 
+def vmap_at_least_one(key, dim=None, train=100, replicates=100):
+    """vmap-2D: create at_least_one splits."""
+    return vmap(partial(at_least_one, dim=dim, train=train))(
+        keys(key, replicates), jnp.arange(replicates) % dim[0])
+
+
 def crossval(key, data, split=10):
-    """2D: split training set into train and validation sets for k-fold CV.
+    """ND: split training set into train and validation sets for k-fold CV.
 
     Creates an additional axis with dimension split: [...] -> [split, ...].
     """
@@ -70,7 +77,23 @@ def crossval(key, data, split=10):
     return (orders[:, size:, :], orders[:, :size, :])
 
 
+def vmap_crossval(key, data, split=10):
+    """vmap-ND: split training sets into train and validation sets."""
+    return vmap(partial(crossval, split=split))(keys(key, data.shape[1]), data)
+
+
 def batch(key, data, batch=64):
     """1D: sample batch along axis 0."""
     indices = random.randint(key, shape=(batch,), maxval=data.shape[0])
     return data[indices]
+
+
+def iid(key, dim=None, train=100):
+    """1D: generate IID data split."""
+    idx = random.permutation(key, jnp.arange(dim))
+    return idx[:train], idx[train:]
+
+
+def vmap_iid(key, dim=None, train=100, replicates=100):
+    """vmap-ND: generate IID data splits."""
+    return vmap(partial(iid, dim=dim, train=train))(keys(key, replicates))

@@ -103,20 +103,26 @@ class Dataset:
         """Index into data."""
         return self.matrix[indices[:, 0], indices[:, 1]]
 
-    def _index(self, pred, indices=None):
-        # Indices available -> index into matrix
-        if indices is not None:
-            actual = self.index(indices)
-            # Full matrix predictions -> also index given predictions
-            if len(pred.shape) == 2:
-                pred = pred[indices[:, 0], indices[:, 1]]
-        # No indices -> assume full matrix
-        else:
-            assert len(pred.shape) == 2
-            actual = self.matrix
-        return pred, actual
+    def _index(self, pred, indices=None, mode="mf"):
+        if mode == "mf":
+            # Indices available -> index into matrix
+            if indices is not None:
+                actual = self.index(indices)
+                # Full matrix predictions -> also index given predictions
+                if len(pred.shape) == 2:
+                    pred = pred[indices[:, 0], indices[:, 1]]
+            # No indices -> assume full matrix
+            else:
+                assert len(pred.shape) == 2
+                actual = self.matrix
+            return pred, actual
+        elif mode == "if":
+            if indices is not None:
+                return pred, self.interference[indices]
+            else:
+                return pred, self.interference
 
-    def loss(self, pred, indices=None):
+    def loss(self, pred, indices=None, mode="mf"):
         """Compute squared l2-log loss.
 
         Parameters
@@ -125,8 +131,11 @@ class Dataset:
             Predictions. Can be full matrix, or a sparse list.
         indices : jnp.array
             Prediction indices. If None, pred is treated as a full matrix.
+        mode : str
+            Loss mode; can be "mf" (Matrix Factorization) or "if"
+            (Interference).
         """
-        pred, actual = self._index(pred, indices=indices)
+        pred, actual = self._index(pred, indices=indices, mode=mode)
         return jnp.mean(jnp.square(pred - actual))
 
     def rmse(self, pred, indices=None):
