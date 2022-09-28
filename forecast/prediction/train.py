@@ -10,12 +10,10 @@ from jax import random, value_and_grad, vmap, jit
 import optax
 import haiku as hk
 
-from forecast.prediction.objective import MatrixFactorizationObjective
 
 from . import split
 from .rank1 import Rank1
 from .history import History
-from .objective import MatrixFactorizationObjective, InterferenceObjective
 
 
 class CrossValidationTrainer:
@@ -69,10 +67,8 @@ class CrossValidationTrainer:
 
         if isinstance(batch, int):
             batch = (batch, batch)
-        self.obj_mf = MatrixFactorizationObjective(
-            dataset, model, batch=batch[0], beta=beta[0])
-        self.obj_if = InterferenceObjective(
-            dataset, model, batch=batch[1], beta=beta[1])
+        self.batch = batch
+        self.beta = beta
 
         self.replicates = replicates
         self.k = k
@@ -87,19 +83,24 @@ class CrossValidationTrainer:
     @jit
     def step(self, key, state, replicate):
         """Single training step."""
-        # Close over splits, m_bar, d_bar so they aren't included in
-        # value_and_grad.
-        def _loss_func(key, params):
-            k1, k2 = random.split(key, 2)
-            return (
-                self.obj_mf.sample_loss(
-                    k1, params, replicate.splits_mf.train,
-                    m_bar=replicate.m_bar, d_bar=replicate.d_bar)
-                + self.obj_if.sample_loss(
-                    k2, params, replicate.splits_if.train,
-                    m_bar=replicate.m_bar, d_bar=replicate.d_bar))
+        k1, k2 = random.split(key, 2)
+        ij = split.batch(k1, replicate.splits_mf, batch=self.batch[0])
+        ijk_idx = split.batch(k2, replicate.splits_if, batch=self.batch[1])
+        batch = jnp.concatenate([ij, self.dataset.if_ijk[ijk_idx]])
+        actual = (
+            self.dataset.matrix[ij[:, 0], ij[:, 1]],
+            self.dataset.interference[ijk_idx])
 
-        loss, grads = value_and_grad(_loss_func)(key, state.params)
+        # Close over all but params so they aren't included in value_and_grad.
+        def _loss_func(params):
+            pred = self.model.apply(
+                params, batch, m_bar=replicate.m_bar, d_bar=replicate.d_bar)
+            pred = (pred[:self.batch[0]], pred[self.batch[0]:])
+            return (
+                jnp.mean(jnp.square(actual[0] - pred[0])) * self.beta[0]
+                + jnp.mean(jnp.square(actual[1] - pred[1])) * self.beta[1])
+
+        loss, grads = value_and_grad(_loss_func)(state.params)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
         return loss, self.TrainState(params=params, opt_state=opt_state)
@@ -115,9 +116,9 @@ class CrossValidationTrainer:
     def epoch_val(self, state, replicate):
         """Handle epoch checkpointing."""
         checkpoint = self.model.apply(
-            state.params,
-            ij=self.dataset.if_ij, ip=self.dataset.if_ip,
+            state.params, ijk=self.dataset.if_ijk,
             full=True, m_bar=replicate.m_bar, d_bar=replicate.d_bar)
+        # TODO: fix this
         losses = {
             "if_val": self.obj_if(checkpoint, replicate.splits_if.val),
             "if_test": self.obj_if(checkpoint, replicate.splits_if.test),

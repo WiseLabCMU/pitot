@@ -32,10 +32,10 @@ class Dataset:
         Number of modules, devices.
     x_m, x_d : jnp.array(float[n_features, N_m or N_d])
         Side information for modules, devices.
-    if_ij : jnp.array(int[:, 2])
-        Module indices and device indices (i, j) for interference data.
+    if_ijk : jnp.array(int[:, 3])
+        Module, device, and interference indices (i, j, k).
     if_if : jnp.array(int[])
-        Interferer indices (i') for interference data.
+        Interference data.
     """
 
     def __init__(
@@ -57,9 +57,10 @@ class Dataset:
         self.x_d = jnp.array(data['runtime_data'])
 
         # Interference
-        self.if_ij = jnp.stack(
-            [self.if_data["module"], self.if_data["runtime"]]).T
-        self.if_ip = jnp.array(self.if_data["interferer"])
+        self.if_ijk = jnp.stack([
+            self.if_data["module"],
+            self.if_data["runtime"],
+            self.if_data["interferer"]]).T
         self.interference = jnp.log(
             self._get_key(self.if_data, key)) - jnp.log(offset)
         self.if_size = self.interference.shape[0]

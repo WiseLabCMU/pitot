@@ -24,8 +24,6 @@ class MatrixFactorizationObjective:
         Loss multiplier.
     """
 
-    Data = namedtuple("MFData", ["ij", "C_ij"])
-
     def __init__(self, dataset, model, batch=64, beta=1.0):
         self.dataset = dataset
         self.model = model
@@ -44,8 +42,7 @@ class MatrixFactorizationObjective:
         """
         batch = random.randint(
             key, shape=(self.batch_size,), minval=0, maxval=indices.shape[0])
-        return self.Data(
-            ij=indices[batch], C_ij=self.dataset.index(indices[batch]))
+        return indices[batch], self.dataset.index(indices[batch])
 
     def loss(self, params, data, **kwargs):
         """Get objective loss.
@@ -90,16 +87,12 @@ class MatrixFactorizationObjective:
 class InterferenceObjective(MatrixFactorizationObjective):
     """Matrix factorization interference objective."""
 
-    Data = namedtuple("IFData", ["ij", "ip", "C_ij_ip"])
 
     def batch(self, key, indices):
         """Generate IID data batch."""
         batch = indices[random.randint(
             key, shape=(self.batch_size,), minval=0, maxval=indices.shape[0])]
-        return self.Data(
-            ij=self.dataset.if_ij[batch],
-            ip=self.dataset.if_ip[batch],
-            C_ij_ip=self.dataset.interference[batch])
+        return self.dataset.if_ijk[batch], self.dataset.interference[batch]
 
     def loss(self, params, data, **kwargs):
         """Get objective loss."""

@@ -2,16 +2,21 @@
 
 from functools import partial
 from jax import numpy as jnp
+from jax import vmap
 import haiku as hk
 
 from modules import LearnedFeatures, HybridEmbedding
 
 
-class MFBase(hk.Module):
-    """Matrix Factorization base class.
+class MatrixFactorization(hk.Module):
+    """Matrix factorization.
 
     Parameters
     ----------
+    M : hk.Module
+        Module embedding M = f_m(U_m, X_m; W_m).
+    D : hk.Module
+        Device embedding D = f_d(U_d, X_d; W_d).
     alpha : float
         Multiplier applied to prediction when predicting baseline residuals.
     shape : (int, int)
@@ -19,122 +24,76 @@ class MFBase(hk.Module):
     """
 
     def __init__(
-            self, alpha=0.001, shape=(10, 10), name="Matrix Factorization"):
+            self, M, D, alpha=0.001, shape=(10, 10),
+            name="Matrix Factorization"):
         super().__init__(name=name)
-        self.shape = shape
+
         self.alpha = alpha
+        self.M = M(samples=shape[0], name="M")
+        self.D = D(samples=shape[1], name="D")
 
-    def __call__(self, *args, full=False, **kwargs):
-        """Dispatcher."""
-        if full:
-            return self._predict_full(*args, **kwargs)
-        else:
-            return self._predict(*args, **kwargs)
-
-
-class MatrixFactorization(MFBase):
-    """Matrix factorization."""
-
-    def __init__(self, M, D, **kwargs):
-        super().__init__(**kwargs)
-
-        self.M = M(samples=self.shape[0], name="M")
-        self.D = D(samples=self.shape[1], name="D")
-
-    def _predict(self, ij, ip=None, m_bar=None, d_bar=None):
+    def __call__(self, ij=None, m_bar=None, d_bar=None, full=False):
         """Ordinary Matrix Factorization with External Baseline.
 
         C_ij_hat = m_bar_i + d_bar_j + m_i^Td_j.
 
-        NOTE: i' (parameter ip) is ignored.
+        NOTE: k (column 2) of ij (ijk) is ignored.
         """
-        m_i = self.M(ij[:, 0])
-        d_j = self.D(ij[:, 1])
-        return (
-            m_bar[ij[:, 0]] + d_bar[ij[:, 1]] + jnp.sum(m_i * d_j, axis=1))
-
-    def _predict_full(self, m_bar=None, d_bar=None):
         M = self.M(None)
         D = self.D(None)
-        C_hat = (
-            m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
-            + jnp.matmul(M, D.T))
-        return {"C_hat": C_hat, "M": M, "D": D}
+
+        def _inner(ij):
+            i, j = ij[:2]
+            return m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j])
+
+        if full:
+            C_hat = (
+                m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
+                + self.alpha * jnp.matmul(M, D.T))
+            return {"C_hat": C_hat, "M": M, "D": D}
+        else:
+            return vmap(_inner)(ij)
 
 
 class MatrixFactorizationIF(MatrixFactorization):
     """Matrix factorization with interference support."""
 
-    def __init__(self, M, D, K=3, **kwargs):
-        super().__init__(M, D, **kwargs)
-        self.K = K
+    def __init__(self, *args, s=3, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.s = s
 
-    def _predict(self, ij, ip=None, m_bar=None, d_bar=None):
+    def __call__(self, ijk=None, m_bar=None, d_bar=None, full=False):
         """Matrix Factorization with Interference.
 
-        C_ij_i'_hat =
-            m_bar_i + d_bar_j
-            + m_i^Td_j
-            + sum_k=1^K (m_i^Tv_s m_i'^Tv_g).
+        C_ijk =
+            m_bar_i + d_bar_j + m_i^Td_j
+            + 1[valid k] * sum_k=1^K (m_i^Tv_s m_i'^Tv_g).
         """
-        # Non-interference: m_bar_i + d_bar_j + m_i^Td_j
-        m_i = self.M(ij[:, 0])
-        d_stack = self.D(ij[:, 1])
-        batch, dim = m_i.shape
-        d_j = d_stack[:, :dim]
-        pred = m_bar[ij[:, 0]] + d_bar[ij[:, 1]] + jnp.sum(m_i * d_j, axis=1)
-
-        if ip is not None:
-            # v_s, v_g: [batch, dim, K]
-            v_shape = [batch, dim, self.K]
-            v_s = d_stack[:, dim:(1 + self.K) * dim].reshape(v_shape)
-            v_g = d_stack[(1 + self.K) * dim:].reshape(v_shape)
-
-            # susceptibility, magnitude: [batch, K]
-            m_shape = [batch, dim, 1]
-            susceptibility = jnp.sum(m_i.reshape(m_shape) * v_s, axis=1)
-            magnitude = jnp.sum(self.M(ip).reshape(m_shape) * v_g, axis=1)
-            pred += jnp.sum(susceptibility * magnitude, axis=1)
-
-        return pred
-
-    def _predict_full(self, ij=None, ip=None, m_bar=None, d_bar=None):
-        # M: [N_m, dim]
         M = self.M(None)
-        # D: [N_d, dim]
         d_stack = self.D(None)
-        N_m, dim = M.shape[1]
-        D = d_stack[:, :dim]
-        # C: [N_m, N_d]
-        C_hat = (
-            m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
-            + jnp.matmul(M, D.T))
+        D = d_stack[:, :M.shape[1]]
 
-        # v_s, v_g: [N_m, dim, K]
-        v_shape = [N_m, dim, self.K]
-        v_s = d_stack[:, dim:(1 + self.K) * dim].reshape(v_shape)
-        v_g = d_stack[(1 + self.K) * dim:].reshape(v_shape)
+        r = M.shape[1]
+        V_s = d_stack[:, r:(1 + self.s * r)].reshape([-1, r, self.s])
+        V_g = d_stack[:, (1 + self.s * r):].reshape([-1, r, self.s])
 
-        # ij: [samples, 2] -> m_i: [samples, dim]
-        m_i = M[ij[:, 0]]
-        # v_s_i, v_g_i: [samples, dim, K]
-        v_s_i = v_s[ij[:, 1]]
-        v_g_i = v_g[ij[:, 1]]
-        # ip: [samples] -> d_ip: [samples, dim]
-        m_ip = M[ip]
+        def _inner(ijk):
+            i, j, k = ijk
+            mFm = (k != -1) * jnp.dot(
+                jnp.matmul(V_s[j].T, M[i]), jnp.matmul(V_g[j].T, M[k]))
+            return (
+                m_bar[i] + d_bar[j] + self.alpha * (jnp.dot(M[i], D[j]) + mFm))
 
-        # susceptibility, magnitude: [samples, K]
-        m_shape = [m_i.shape[0], dim, 1]
-        susceptibility = jnp.sum(m_i.reshape(m_shape) * v_s_i)
-        magnitude = jnp.sum(m_ip.reshape(m_shape) * v_g_i)
-        interference = jnp.sum(susceptibility * magnitude, axis=1)
-
-        # C_ij_i'_hat: [samples,]
-        C_ij_ip_hat = C_hat[ij[:, 0], ij[:, 1]] + interference
-
-        return {
-            "C_hat": C_hat, "M": M, "D": D,
-            "v_s": v_s, "v_g": v_g, "C_ij_ip_hat": C_ij_ip_hat}
+        if full:
+            C_hat = (
+                m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
+                + self.alpha * jnp.matmul(M, D.T))
+            C_hat_ijk = vmap(_inner)(ijk)
+            return {
+                "C_hat": C_hat, "M": M, "D": D,
+                "V_s": V_s, "V_g": V_g, "C_hat_ijk": C_hat_ijk}
+        else:
+            return vmap(_inner)(ijk)
 
 
 def linear(alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
@@ -164,11 +123,11 @@ def embedding(
 
 
 def interference(
-        X_m=None, X_d=None, alpha=0.001, K=3,
+        X_m=None, X_d=None, alpha=0.001, s=3,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Interference."""
     _f = partial(_feature_embedding, dim=dim, scale=scale)
-    device_out = layers[-1] * (2 * K + 1)
+    device_out = layers[-1] * (2 * s + 1)
     return MatrixFactorizationIF(
         _f(X_m, layers=layers), _f(X_d, layers=layers[:-1] + [device_out]),
-        K=K, alpha=alpha, shape=shape, name="embedding")
+        s=s, alpha=alpha, shape=shape, name="embedding")

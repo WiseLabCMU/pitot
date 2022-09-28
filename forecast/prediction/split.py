@@ -10,7 +10,7 @@ def keys(key, n):
 
 
 def diagonal(dims, offset=0):
-    """Matrix Completion: get elements from the (wrapped) diagonal.
+    """2D: get elements from the (wrapped) diagonal.
 
     Assumes cols <= rows.
     """
@@ -44,36 +44,33 @@ def diagonal(dims, offset=0):
     return train, test
 
 
-def iid(key, data=None, train=0):
-    """Generate IID split."""
-    idx = random.permutation(key, jnp.arange(data.shape[0]))
-    if data is None:
-        return idx[:train], idx[train:]
-    else:
-        return data[idx[:train]], data[idx[train:]]
-
-
-def shuffle(key, data):
-    """Shuffle data along first axis."""
-    idx = random.permutation(key, jnp.arange(data.shape[0]))
-    return data[idx]
-
-
 def at_least_one(key, offset=0, dim=None, train=100):
-    """At least one element of each row is included in the train set."""
+    """2D: at least one entry in each row is included in the train set."""
     train_0, test_0 = diagonal(dim, offset)
-    train_1, test_1 = iid(key, data=test_0, train=train)
+
+    idx = random.permutation(key, jnp.arange(test_0.shape[0]))
+    train_1 = test_0[idx[:train]]
+    test_1 = test_1[idx[train:]]
+
     return jnp.concatenate([train_0, train_1]), test_1
 
 
 def crossval(key, data, split=10):
-    """Split training set into train and validation sets for k-fold CV.
+    """2D: split training set into train and validation sets for k-fold CV.
 
     Creates an additional axis with dimension split: [...] -> [split, ...].
     """
     size = int(data.shape[0] / split)
-    orders = shuffle(key, data)[(
+
+    idx = random.permutation(key, jnp.arange(data.shape[0]))
+    orders = data[idx][(
         jnp.arange(data.shape[0]).reshape(1, -1)
         + jnp.arange(split).reshape(-1, 1) * size
     ) % data.shape[0]]
     return (orders[:, size:, :], orders[:, :size, :])
+
+
+def batch(key, data, batch=64):
+    """1D: sample batch along axis 0."""
+    indices = random.randint(key, shape=(batch,), maxval=data.shape[0])
+    return data[indices]
