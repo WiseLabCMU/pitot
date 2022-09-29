@@ -51,7 +51,7 @@ def at_least_one(key, offset=0, dim=None, train=100):
 
     idx = random.permutation(key, jnp.arange(test_0.shape[0]))
     train_1 = test_0[idx[:train - dim[0]]]
-    test_1 = test_1[idx[train - dim[0]:]]
+    test_1 = test_0[idx[train - dim[0]:]]
 
     return jnp.concatenate([train_0, train_1]), test_1
 
@@ -68,23 +68,25 @@ def crossval(key, data, split=10):
     Creates an additional axis with dimension split: [...] -> [split, ...].
     """
     size = int(data.shape[0] / split)
-
     idx = random.permutation(key, jnp.arange(data.shape[0]))
     orders = data[idx][(
         jnp.arange(data.shape[0]).reshape(1, -1)
         + jnp.arange(split).reshape(-1, 1) * size
     ) % data.shape[0]]
-    return (orders[:, size:, :], orders[:, :size, :])
+    return (orders[:, size:], orders[:, :size])
 
 
 def vmap_crossval(key, data, split=10):
     """vmap-ND: split training sets into train and validation sets."""
-    return vmap(partial(crossval, split=split))(keys(key, data.shape[1]), data)
+    return vmap(partial(crossval, split=split))(keys(key, data.shape[0]), data)
 
 
 def batch(key, data, batch=64):
     """1D: sample batch along axis 0."""
-    indices = random.randint(key, shape=(batch,), maxval=data.shape[0])
+    if data is None:
+        return None
+    indices = random.randint(
+        key, shape=(batch,), minval=0, maxval=data.shape[0])
     return data[indices]
 
 

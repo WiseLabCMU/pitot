@@ -39,39 +39,43 @@ class Dataset:
     """
 
     def __init__(
-            self, data="data.npz", if_data="if.npz",
+            self, data="data.npz", if_data=None,
             key=lambda x: x['mean'], offset=1.):
 
-        # Data
-        self.data = self._load(data)
-        self.if_data = self._load(if_data)
-
         # Matrix
+        self.data = self._load(data)
         self.matrix = jnp.log(self._get_key(self.data, key)) - jnp.log(offset)
         self.shape = self.matrix.shape
         self.N_m, self.N_d = self.shape
         self.size = np.prod(self.shape)
 
         # Side information
-        self.x_m = jnp.log(data['module_data'].astype(jnp.float32) + 1)
-        self.x_d = jnp.array(data['runtime_data'])
+        self.x_m = jnp.log(self.data['module_data'].astype(jnp.float32) + 1)
+        self.x_d = jnp.array(self.data['runtime_data'])
 
         # Interference
-        self.if_ijk = jnp.stack([
-            self.if_data["module"],
-            self.if_data["runtime"],
-            self.if_data["interferer"]]).T
-        self.interference = jnp.log(
-            self._get_key(self.if_data, key)) - jnp.log(offset)
-        self.if_size = self.interference.shape[0]
+        if if_data is not None:
+            self.if_data = self._load(if_data)
+            self.if_ijk = jnp.stack([
+                self.if_data["module"],
+                self.if_data["runtime"],
+                self.if_data["interferer"]]).T
+            self.interference = jnp.log(
+                self._get_key(self.if_data, key)) - jnp.log(offset)
+            self.if_size = self.interference.shape[0]
+        else:
+            self.if_data = None
+            self.if_ijk = None
+            self.interference = None
+            self.if_size = 0
 
         # Metadata
-        self.modules = data['modules']
+        self.modules = self.data['modules']
         self.modules_dict = {m: i for i, m in enumerate(self.modules)}
-        self.runtimes = data['runtimes']
+        self.runtimes = self.data['runtimes']
         self.runtimes_dict = {r: i for i, r in enumerate(self.runtimes)}
-        self.cpu_names = data['cpu_names']
-        self.opcode_names = data['opcode_names']
+        self.cpu_names = self.data['cpu_names']
+        self.opcode_names = self.data['opcode_names']
 
     @staticmethod
     def _load(path):
@@ -102,6 +106,13 @@ class Dataset:
     def index(self, indices):
         """Index into data."""
         return self.matrix[indices[:, 0], indices[:, 1]]
+
+    def index_if(self, indices):
+        """Index into interference data."""
+        if self.if_data is None:
+            return None
+        else:
+            return self.if_ijk[indices]
 
     def _index(self, pred, indices=None, mode="mf"):
         if mode == "mf":
@@ -135,6 +146,8 @@ class Dataset:
             Loss mode; can be "mf" (Matrix Factorization) or "if"
             (Interference).
         """
+        if mode == "if" and self.if_data is None:
+            return 0.0
         pred, actual = self._index(pred, indices=indices, mode=mode)
         return jnp.mean(jnp.square(pred - actual))
 

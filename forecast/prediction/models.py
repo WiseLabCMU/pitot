@@ -1,11 +1,15 @@
-"""Matrix Factorization Models."""
+"""Matrix Factorization Models.
+
+The exposed models (embedding, interference, linear) take a Dataset and
+kwargs with configuration.
+"""
 
 from functools import partial
 from jax import numpy as jnp
 from jax import vmap
 import haiku as hk
 
-from modules import LearnedFeatures, HybridEmbedding
+from .modules import LearnedFeatures, HybridEmbedding
 
 
 class MatrixFactorization(hk.Module):
@@ -32,6 +36,12 @@ class MatrixFactorization(hk.Module):
         self.M = M(samples=shape[0], name="M")
         self.D = D(samples=shape[1], name="D")
 
+    @staticmethod
+    def _vvmap(func, ij):
+        if not isinstance(ij, (list, tuple)):
+            ij = [ij]
+        return [None if split is None else vmap(func)(split) for split in ij]
+
     def __call__(self, ij, m_bar=None, d_bar=None, full=False):
         """Ordinary Matrix Factorization with External Baseline.
 
@@ -44,18 +54,23 @@ class MatrixFactorization(hk.Module):
         M = self.M(None)
         D = self.D(None)
 
-        def _inner(ij):
-            i, j = ij[:2]
-            return m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j])
-
         if full:
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * jnp.matmul(M, D.T))
-            C_hat_ij = [C_hat[split[:, 0], split[:, 1]] for split in ij]
+
+            def _inner(ij):
+                i, j = ij[:2]
+                return C_hat[i, j]
+
+            C_hat_ij = self._vvmap(_inner, ij)
             return C_hat_ij, {"C_hat": C_hat, "M": M, "D": D}
         else:
-            return [vmap(_inner)(split) for split in ij]
+            def _inner(ij):
+                i, j = ij[:2]
+                return m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j])
+
+            return self._vvmap(_inner, ij)
 
 
 class MatrixFactorizationIF(MatrixFactorization):
@@ -77,8 +92,8 @@ class MatrixFactorizationIF(MatrixFactorization):
         D = d_stack[:, :M.shape[1]]
 
         r = M.shape[1]
-        V_s = d_stack[:, r:(1 + self.s * r)].reshape([-1, r, self.s])
-        V_g = d_stack[:, (1 + self.s * r):].reshape([-1, r, self.s])
+        V_s = d_stack[:, r:(1 + self.s) * r].reshape([-1, r, self.s])
+        V_g = d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s])
 
         def _inner(ijk):
             i, j, k = ijk
@@ -91,20 +106,11 @@ class MatrixFactorizationIF(MatrixFactorization):
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * jnp.matmul(M, D.T))
-            C_hat_ijk = [vmap(_inner)(split) for split in ijk]
+            C_hat_ijk = self._vvmap(_inner, ijk)
             return C_hat_ijk, {
-                "C_hat": C_hat, "M": M, "D": D,
-                "V_s": V_s, "V_g": V_g}
+                "C_hat": C_hat, "M": M, "D": D, "V_s": V_s, "V_g": V_g}
         else:
-            return vmap(_inner)(ijk)
-
-
-def linear(alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
-    """Linear matrix factorization: C_ij = <u_m^{(i)}, u_d^{(j)}>."""
-    return MatrixFactorization(
-        partial(LearnedFeatures, dim=dim, scale=scale),
-        partial(LearnedFeatures, dim=dim, scale=scale),
-        alpha=alpha, shape=shape, name="linear")
+            return self._vvmap(_inner, ijk)
 
 
 def _feature_embedding(data, layers=[], dim=4, scale=0.01):
@@ -117,20 +123,32 @@ def _feature_embedding(data, layers=[], dim=4, scale=0.01):
 
 
 def embedding(
-        X_m=None, X_d=None, alpha=0.001,
+        dataset, X_m=None, X_d=None, alpha=0.001,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Side Information using NN Embedding."""
+    X_m = dataset.x_m if X_m is True else X_m
+    X_d = dataset.x_d if X_d is True else X_d
     _f = partial(_feature_embedding, layers=layers, dim=dim, scale=scale)
     return MatrixFactorization(
         _f(X_m), _f(X_d), alpha=alpha, shape=shape, name="embedding")
 
 
 def interference(
-        X_m=None, X_d=None, alpha=0.001, s=3,
+        dataset, X_m=None, X_d=None, alpha=0.001, s=3,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Interference."""
+    X_m = dataset.x_m if X_m is True else X_m
+    X_d = dataset.x_d if X_d is True else X_d
     _f = partial(_feature_embedding, dim=dim, scale=scale)
     device_out = layers[-1] * (2 * s + 1)
     return MatrixFactorizationIF(
         _f(X_m, layers=layers), _f(X_d, layers=layers[:-1] + [device_out]),
         s=s, alpha=alpha, shape=shape, name="embedding")
+
+
+def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
+    """Linear matrix factorization: C_ij = <u_m^{(i)}, u_d^{(j)}>."""
+    return MatrixFactorization(
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        partial(LearnedFeatures, dim=dim, scale=scale),
+        alpha=alpha, shape=shape, name="linear")

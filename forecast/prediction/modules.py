@@ -14,7 +14,10 @@ class SideInformation(hk.Module):
 
     def __call__(self, i):
         """Index into side info with shape (index, features)."""
-        return self.data[i]
+        if i is None:
+            return self.data
+        else:
+            return self.data[i]
 
 
 class LearnedFeatures(hk.Module):

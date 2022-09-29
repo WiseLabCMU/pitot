@@ -13,15 +13,15 @@ def _load_df(path, ds, key="cpu_time"):
     session = Session(path)
 
     def _baseline(row):
-        return ds.matrix[
+        return float(ds.matrix[
             ds.modules_dict[row["file"]],
-            ds.runtimes_dict[row["runtime"]]]
+            ds.runtimes_dict[row["runtime"]]])
 
     def _mean(row):
-        return np.log(np.mean(
+        return np.mean(
             session
             .get(module_id=row["module_id"])
-            .arrays(keys=[key])[key]))
+            .arrays(keys=[key])[key][2:])
 
     def _interferer(row):
         modules = row["module"].split('.')
@@ -34,7 +34,7 @@ def _load_df(path, ds, key="cpu_time"):
 
     df["interferer"] = df.apply(_interferer, axis=1)
     df["baseline"] = df.apply(_baseline, axis=1)
-    df["diff"] = df["mean"] - df["baseline"]
+    df["diff"] = np.log(df["mean"]) - df["baseline"]
     df["source"] = path
     return df
 
