@@ -46,33 +46,34 @@ def _cfg_if(s):
 PRESETS = {
     # Ablations - Embedding Dimension (r=64)
     # p = 0.2, 0.4, 0.6, 0.8
-    "embedding_r8": {("model_args", "layers"): [64, 8]},
-    "embedding_r16": {("model_args", "layers"): [64, 16]},
-    "embedding_r32": {("model_args", "layers"): [64, 32]},
-    "embedding_r64": {("model_args", "layers"): [64, 64]},
-    "embedding_r128": {("model_args", "layers"): [64, 128]},
+    "Er8": {("model_args", "layers"): [64, 8]},
+    "Er16": {("model_args", "layers"): [64, 16]},
+    "Er32": {("model_args", "layers"): [64, 32]},
+    "Er64": {("model_args", "layers"): [64, 64]},
+    "Er128": {("model_args", "layers"): [64, 128]},
     # Ablations - Embedding Dimension, Linear (r=64)
     # p = 0.1, 0.2, ... 0.9
-    "linear_r2": _cfg_linear(2),
-    "linear_r4": _cfg_linear(4),
-    "linear_r8": _cfg_linear(8),
-    "linear_r16": _cfg_linear(16),
-    "linear_r32": _cfg_linear(32),
-    "linear_r64": _cfg_linear(64),
-    "linear_r128": _cfg_linear(128),
+    "Lr1": _cfg_linear(1),
+    "Lr2": _cfg_linear(2),
+    "Lr4": _cfg_linear(4),
+    "Lr8": _cfg_linear(8),
+    "Lr16": _cfg_linear(16),
+    "Lr32": _cfg_linear(32),
+    "Lr64": _cfg_linear(64),
+    "Lr128": _cfg_linear(128),
     # Ablations - Embedding Input Dimension (q=?)
     # p = 0.2, 0.4, 0.6, 0.8
-    "embedding_q2": {("model_args", "dim"): 2},
-    "embedding_q4": {("model_args", "dim"): 4},
-    "embedding_q8": {("model_args", "dim"): 8},
-    "embedding_q16": {("model_args", "dim"): 16},
-    "embedding_q32": {("model_args", "dim"): 32},
+    "Eq2": {("model_args", "dim"): 2},
+    "Eq4": {("model_args", "dim"): 4},
+    "Eq8": {("model_args", "dim"): 8},
+    "Eq16": {("model_args", "dim"): 16},
+    "Eq32": {("model_args", "dim"): 32},
     # Ablations - Interference Types (s=?)
     # p = 0.2, 0.4, 0.6, 0.8
-    "interference_s1": _cfg_if(1),
-    "interference_s2": _cfg_if(2),
-    "interference_s4": _cfg_if(3),
-    "interference_s4": _cfg_if(4),
+    "Is1": _cfg_if(1),
+    "Is2": _cfg_if(2),
+    "Is4": _cfg_if(3),
+    "Is4": _cfg_if(4),
     # Full experiments
     # p = 0.1, 0.2, ... 0.9
     "interference": {
@@ -133,9 +134,9 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("methods", nargs="+", default=[])
     p.add_argument("--dataset", "-d", default="data.npz")
-    p.add_argument("--interference", "-i", default=None)
+    p.add_argument("--interference", "-i", default="if.npz")
     p.add_argument("--no-baseline", dest="baseline", action='store_false')
-    p.add_argument("--sparsity", nargs="+", type=float, default=None)
+    p.add_argument("--sparsity", "-s", nargs="+", type=float, default=None)
     p.set_defaults(baseline=True)
     args = p.parse_args()
 
