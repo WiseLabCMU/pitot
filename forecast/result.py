@@ -2,7 +2,6 @@
 
 import os
 
-from jax import vmap
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import Line2D
@@ -16,18 +15,7 @@ class Result:
         self.dataset = dataset
         self.name = name
 
-        data = np.load(self.path)
-        self.baseline = np.array(vmap(self.dataset.error)(
-            data["C_bar"], indices=data["mf_test"]))
-        self.error = np.array(vmap(self.dataset.error)(
-            np.mean(data["C_hat"], axis=1),
-            indices=data["mf_test"]))
-
-        self.baseline_full = np.array(vmap(self.dataset.errors)(
-            data["C_bar"], indices=data["mf_test"]))
-        self.error_full = np.array(vmap(self.dataset.errors)(
-            np.mean(data["C_hat"], axis=1),
-            indices=data["mf_test"]))
+        self.summary = dict(np.load(path.replace(".npz", "_summary.npz")))
 
     def plot_training(self, ax, keys=None, names=None):
         """Plot train/val/test curves.
@@ -55,11 +43,11 @@ class Result:
         Otherwise, the mean absolute error for each replicate is plotted.
         """
         if full:
-            x1 = self.baseline_full.reshape(-1)
-            x2 = self.error_full.reshape(-1)
+            x1 = self.summary["baseline_full"].reshape(-1)
+            x2 = self.summary["error_full"].reshape(-1)
         else:
-            x1 = self.baseline
-            x2 = self.error
+            x1 = self.summary["baseline"]
+            x2 = self.summary["error"]
 
         left = np.minimum(np.min(x1), np.min(x2))
         right = np.maximum(np.max(x1), np.max(x2))
@@ -76,7 +64,9 @@ class Method:
     """Ablation experiments for a set of hyperparameters."""
 
     def __init__(self, path, dataset, name="Matrix Factorization"):
-        _str = [p for p in os.listdir(path) if p.endswith(".npz")]
+        _str = [
+            p for p in os.listdir(path)
+            if p.endswith(".npz") and "summary" not in p]
         _float = [float(sp.rstrip('.npz')) for sp in _str]
         _str, _float = zip(*sorted(zip(_str, _float)))
 
@@ -99,11 +89,10 @@ class Method:
         yerr = np.sqrt(np.var(data, axis=1) / (data.shape[1] - 1)) * stddev
         ax.errorbar(x, y, yerr=yerr, **kwargs)
 
-    def compare(self, ax, color='C0', baseline=False, boxplot=True):
+    def compare(
+            self, ax, color='C0', boxplot=True, key="error"):
         """Add boxplots for mean absolute error on replicates to axes."""
-        data = np.array([
-            (res.baseline if baseline else res.error)
-            for res in self.results])
+        data = np.array([res.summary[key] for res in self.results])
         pos = np.arange(len(self.splits))
         if boxplot:
             self._boxplot(ax, pos, data, color, widths=0.4)
@@ -142,11 +131,12 @@ class Method:
         """Plot percentile absolute error bounds."""
         colors = ['C{}'.format(i) for i in range(len(percentiles))]
 
-        per_base = np.array([np.percentile(
-            res.baseline_full, percentiles) for res in self.results])
+        per_base = np.array([
+            np.percentile(res.summary["baseline_full"], percentiles)
+            for res in self.results])
         per = np.array([np.percentile(
-            res.error_full, percentiles) for res in self.results])
-        sizes = [res.error_full.shape[1] for res in self.results]
+            res.summary["error_full"], percentiles) for res in self.results])
+        sizes = [res.summary["error_full"].shape[1] for res in self.results]
 
         for x, xb, c, p in zip(per.T, per_base.T, colors, percentiles):
             ax.plot(x, marker='.', label="{}%".format(p), color=c)

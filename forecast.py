@@ -20,7 +20,8 @@ ACTIONS = {
         "Plot interference marginal distributions by runtime."),
     "interference": (
         [scripts.interference, scripts.plot_interference],
-        "Create interference summary and plot.")
+        "Create interference summary and plot."),
+    "summary": (scripts.summary, "Summarize results.")
 }
 
 

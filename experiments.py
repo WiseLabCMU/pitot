@@ -17,9 +17,9 @@ DEFAULT = {
     "model": "embedding",
     "model_args": {
         "X_m": True, "X_d": True, "alpha": 0.001,
-        "layers": [64, 32], "dim": 4, "scale": 0.01},
+        "layers": [64, 64], "dim": 4, "scale": 0.01},
     "training_args": {
-        "beta": (1.0, 0.0), "batch": (128, None), "replicates": 50,
+        "beta": (1.0, 0.0), "batch": (128, 0), "replicates": 50,
         "k": 10, "do_baseline": True
     }
 }
@@ -27,22 +27,54 @@ DEFAULT = {
 EPOCHS = 100
 EPOCH_SIZE_MULTIPLIER = 250
 
-_LA = {"alpha": 0.001, "scale": 0.01}
+
+def _cfg_linear(dim):
+    return {
+        ("model",): "linear",
+        ("model_args",): {"dim": dim, "alpha": 0.001, "scale": 0.01}
+    }
+
+
+def _cfg_if(s):
+    return {
+        ("model",): "interference", ("model_args", "s"): s,
+        ("training_args", "beta"): (1.0, 1.0),
+        ("training_args", "batch"): (128, 128)
+    }
+
 
 PRESETS = {
-    # Ablations - Embedding Dimension
-    "embedding8": {("model_args", "layers"): [64, 8]},
-    "embedding16": {("model_args", "layers"): [64, 16]},
-    "embedding32": {("model_args", "layers"): [64, 32]},
-    "embedding64": {("model_args", "layers"): [64, 64]},
-    "embedding128": {("model_args", "layers"): [64, 128]},
-    # Ablations - Embedding Dimension, Linear
-    "linear8": {("model_args",): {"dim": 8, **_LA}},
-    "linear16": {("model_args",): {"dim": 16, **_LA}},
-    "linear32": {("model_args",): {"dim": 32, **_LA}},
-    "linear64": {("model_args",): {"dim": 64, **_LA}},
-    "linear128": {("model_args",): {"dim": 128, **_LA}},
-    # ...
+    # Ablations - Embedding Dimension (r=64)
+    # p = 0.2, 0.4, 0.6, 0.8
+    "embedding_r8": {("model_args", "layers"): [64, 8]},
+    "embedding_r16": {("model_args", "layers"): [64, 16]},
+    "embedding_r32": {("model_args", "layers"): [64, 32]},
+    "embedding_r64": {("model_args", "layers"): [64, 64]},
+    "embedding_r128": {("model_args", "layers"): [64, 128]},
+    # Ablations - Embedding Dimension, Linear (r=64)
+    # p = 0.1, 0.2, ... 0.9
+    "linear_r2": _cfg_linear(2),
+    "linear_r4": _cfg_linear(4),
+    "linear_r8": _cfg_linear(8),
+    "linear_r16": _cfg_linear(16),
+    "linear_r32": _cfg_linear(32),
+    "linear_r64": _cfg_linear(64),
+    "linear_r128": _cfg_linear(128),
+    # Ablations - Embedding Input Dimension (q=?)
+    # p = 0.2, 0.4, 0.6, 0.8
+    "embedding_q2": {("model_args", "dim"): 2},
+    "embedding_q4": {("model_args", "dim"): 4},
+    "embedding_q8": {("model_args", "dim"): 8},
+    "embedding_q16": {("model_args", "dim"): 16},
+    "embedding_q32": {("model_args", "dim"): 32},
+    # Ablations - Interference Types (s=?)
+    # p = 0.2, 0.4, 0.6, 0.8
+    "interference_s1": _cfg_if(1),
+    "interference_s2": _cfg_if(2),
+    "interference_s4": _cfg_if(3),
+    "interference_s4": _cfg_if(4),
+    # Full experiments
+    # p = 0.1, 0.2, ... 0.9
     "interference": {
         ("model",): "interference",
         ("model_args", "s"): 3,

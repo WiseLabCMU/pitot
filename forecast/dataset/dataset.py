@@ -146,24 +146,22 @@ class Dataset:
             Loss mode; can be "mf" (Matrix Factorization) or "if"
             (Interference).
         """
-        if mode == "if" and self.if_data is None:
+        if (mode == "if" and self.if_data is None) or pred.shape[0] == 0:
             return 0.0
         pred, actual = self._index(pred, indices=indices, mode=mode)
         return jnp.mean(jnp.square(pred - actual))
 
-    def rmse(self, pred, indices=None):
+    def rmse(self, pred, indices=None, mode="mf"):
         """Compute RMSE log error; alias for sqrt(loss)."""
-        return jnp.sqrt(self.loss(pred=pred, indices=indices))
+        return jnp.sqrt(self.loss(pred=pred, indices=indices, mode=mode))
 
-    def errors(self, pred, indices=None):
-        """Get all errors."""
-        pred, actual = self._index(pred, indices=indices)
-        return pred - actual
-
-    def error(self, pred, indices=None):
+    def error(self, pred, indices=None, mode="mf", full=False):
         """Compute mean absolute error."""
-        pred, actual = self._index(pred, indices=indices)
-        return jnp.mean(jnp.abs(pred - actual))
+        pred, actual = self._index(pred, indices=indices, mode=mode)
+        if full:
+            return pred - actual
+        else:
+            return jnp.mean(jnp.abs(pred - actual))
 
     def plot(self, matrix=None, ax=None, figsize=None, title=None):
         """Plot results."""
