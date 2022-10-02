@@ -30,11 +30,6 @@ class CrossValidationTrainer:
     beta : (float, float)
         Weights applied to non-interference and interference loss,
         respectively.
-    epochs : int
-        Number of epochs (not a "true" epoch; just used for accounting).
-        A checkpoint is saved (to main memory) after each epoch.
-    epoch_size : int
-        Number of batches per epoch; each batch is IID.
     batch : int or (int, int).
         Batch size; if tuple, sets the batch size for non-interference
         and interference separately.
@@ -54,9 +49,8 @@ class CrossValidationTrainer:
     Splits = namedtuple("Splits", ["train", "val", "test"])
 
     def __init__(
-            self, dataset, model, optimizer=None, beta=(1.0, 1.0), epochs=10,
-            epoch_size=100, batch=64, replicates=100, k=25,
-            do_baseline=True, cpu=None):
+            self, dataset, model, optimizer=None, beta=(1.0, 1.0), batch=64,
+            replicates=100, k=25, do_baseline=True, cpu=None):
 
         def _forward(*args, **kwargs):
             return model()(*args, **kwargs)
@@ -65,8 +59,6 @@ class CrossValidationTrainer:
         self.dataset = dataset
         self.optimizer = optax.adam(0.001) if optimizer is None else optimizer
 
-        self.epochs = epochs
-        self.epoch_size = epoch_size
         if isinstance(batch, int):
             batch = (batch, batch)
         self.batch = batch
@@ -127,13 +119,13 @@ class CrossValidationTrainer:
         params = optax.apply_updates(state.params, updates)
         return loss, self.TrainState(params=params, opt_state=opt_state)
 
-    def epoch_train(self, key, state, replicate):
+    def epoch_train(self, key, state, replicate, epoch_size=100):
         """Single epoch for a single replicate."""
         epoch_loss = 0.
-        for ki in random.split(key, self.epoch_size):
+        for ki in random.split(key, epoch_size):
             loss, state = self.step(ki, state, replicate)
             epoch_loss += loss
-        return epoch_loss / self.epoch_size, state
+        return epoch_loss / epoch_size, state
 
     def epoch_val(self, state, replicate):
         """Handle epoch checkpointing."""
@@ -155,12 +147,14 @@ class CrossValidationTrainer:
             "if_test_loss": self.dataset.loss(
                 if_test, indices=replicate.splits_if.test, mode="if")
         }
-        return losses, checkpoint
+        return losses, checkpoint, if_test
 
-    def train(self, key, replicate, tqdm=None):
+    def train(self, key, replicate, epochs=100, epoch_size=100, tqdm=None):
         """Train model for a single swarm of k-CV replicates."""
         _vmap_spec = self._vmap_spec(inner=None)
-        _train = vmap(self.epoch_train, in_axes=(0, 0, _vmap_spec))
+        _train = vmap(
+            partial(self.epoch_train, epoch_size=epoch_size),
+            in_axes=(0, 0, _vmap_spec))
         _val = vmap(self.epoch_val, in_axes=(0, _vmap_spec))
 
         k1, k2 = random.split(key, 2)
@@ -168,29 +162,35 @@ class CrossValidationTrainer:
             self._init, in_axes=(0, _vmap_spec)
         )(split.keys(k1, self.k), replicate)
 
-        iterator = random.split(k2, self.epochs)
+        iterator = random.split(k2, epochs)
         if tqdm is not None:
             iterator = tqdm(iterator)
 
         history = History(cpu=self.cpu)
         for ki in iterator:
             loss, state = _train(split.keys(ki, self.k), state, replicate)
-            losses, checkpoint = _val(state, replicate)
+            losses, checkpoint, if_test = _val(state, replicate)
             val = (
                 losses["mf_val_loss"] * self.beta[0]
                 + losses["if_val_loss"] * self.beta[1])
             history.log(train_loss=loss, **losses)
-            history.update(val, **checkpoint)
+            history.update(val, C_ijk_hat=if_test, **checkpoint)
 
         return history.export()
 
-    def train_replicates(self, key=42, p=0.25, tqdm=None):
+    def train_replicates(
+            self, epoch_size=100, epochs=100, key=42, p=0.25, tqdm=None):
         """Train replicates.
 
         Parameters
         ----------
         key : jax.random.PRNGKey or int.
             Root random key; if int, creates one.
+        epochs : int
+            Number of epochs (not a "true" epoch; just used for accounting).
+            A checkpoint is saved (to main memory) after each epoch.
+        epoch_size : int
+            Number of batches per epoch; each batch is IID.
         p : float
             Target sparsity level (proportion of train+val set).
         tqdm : tqdm.tqdm or tqdm.notebook.tqdm
@@ -242,7 +242,8 @@ class CrossValidationTrainer:
         replicates = self.Replicate(
             m_bar=m_bar, d_bar=d_bar, splits_mf=mf_splits, splits_if=if_splits)
         results = vmap(
-            partial(self.train, tqdm=tqdm),
+            partial(
+                self.train, tqdm=tqdm, epochs=epochs, epoch_size=epoch_size),
             in_axes=(0, self._vmap_spec(inner=0))
         )(split.keys(key, self.replicates), replicates)
 

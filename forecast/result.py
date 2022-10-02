@@ -18,18 +18,18 @@ class Result:
 
         data = np.load(self.path)
         self.baseline = np.array(vmap(self.dataset.error)(
-            data["baseline"], indices=data["test_split"]))
+            data["C_bar"], indices=data["mf_test"]))
         self.error = np.array(vmap(self.dataset.error)(
-            np.mean(data["predictions"], axis=1),
-            indices=data["test_split"]))
+            np.mean(data["C_hat"], axis=1),
+            indices=data["mf_test"]))
 
         self.baseline_full = np.array(vmap(self.dataset.errors)(
-            data["baseline"], indices=data["test_split"]))
+            data["C_bar"], indices=data["mf_test"]))
         self.error_full = np.array(vmap(self.dataset.errors)(
-            np.mean(data["predictions"], axis=1),
-            indices=data["test_split"]))
+            np.mean(data["C_hat"], axis=1),
+            indices=data["mf_test"]))
 
-    def plot_training(self, ax):
+    def plot_training(self, ax, keys=None, names=None):
         """Plot train/val/test curves.
 
         Each outer replicate is plotted as a separate curve, with inner
@@ -37,9 +37,10 @@ class Result:
         """
         data = np.load(self.path)
 
-        keys = ['train_loss', 'val_loss', 'test_loss']
-        names = ['train', 'val', 'test']
-        colors = ['C0', 'C1', 'C2']
+        if keys is None:
+            keys = ["train_loss", "mf_val_loss", "mf_test_loss"]
+            names = ["train", "val", "test"]
+        colors = ['C{}'.format(i) for i in range(len(keys))]
 
         for key, color in zip(keys, colors):
             ax.plot(np.mean(data[key], axis=-1).T, color=color)
@@ -51,7 +52,6 @@ class Result:
 
         If `full`, the errors in test sets across all replicates are
         aggregated, and plotted as a histogram.
-
         Otherwise, the mean absolute error for each replicate is plotted.
         """
         if full:

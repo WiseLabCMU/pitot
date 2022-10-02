@@ -88,10 +88,10 @@ class MatrixFactorizationIF(MatrixFactorization):
             + 1[valid k] * sum_k=1^K (m_i^Tv_s m_i'^Tv_g).
         """
         M = self.M(None)
-        d_stack = self.D(None)
-        D = d_stack[:, :M.shape[1]]
-
         r = M.shape[1]
+        d_stack = self.D(None)
+        D = d_stack[:, :r]
+
         V_s = d_stack[:, r:(1 + self.s) * r].reshape([-1, r, self.s])
         V_g = d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s])
 
@@ -102,15 +102,16 @@ class MatrixFactorizationIF(MatrixFactorization):
             return (
                 m_bar[i] + d_bar[j] + self.alpha * (jnp.dot(M[i], D[j]) + mFm))
 
+        C_hat_ijk = self._vvmap(_inner, ijk)
+
         if full:
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * jnp.matmul(M, D.T))
-            C_hat_ijk = self._vvmap(_inner, ijk)
             return C_hat_ijk, {
                 "C_hat": C_hat, "M": M, "D": D, "V_s": V_s, "V_g": V_g}
         else:
-            return self._vvmap(_inner, ijk)
+            return C_hat_ijk
 
 
 def _feature_embedding(data, layers=[], dim=4, scale=0.01):
