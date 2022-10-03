@@ -70,7 +70,7 @@ class MatrixFactorization(hk.Module):
                 i, j = ij[:2]
                 return m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j])
 
-            return self._vvmap(_inner, ij), 0.0
+            return self._vvmap(_inner, ij)
 
 
 class MatrixFactorizationIF(MatrixFactorization):
