@@ -37,7 +37,7 @@ def _summary(ds, path):
 
 def summarize(
         data="data.npz", if_data="if.npz", key="mean", offset=1000. * 1000.,
-        path=["results"]):
+        path=["results"], expand=0):
     """Create summary statistics for results.
 
     Parameters
@@ -52,15 +52,26 @@ def summarize(
         Execution time offset multiplier.
     path : str
         Method results directories.
+    expand : int
+        Search directories for this many levels as well.
     """
     ds = Dataset(data=data, if_data=if_data, key=key, offset=offset)
 
     for p in path:
-        results = [
-            x for x in os.listdir(p)
-            if (x.endswith(".npz") and not x.endswith("_summary.npz"))]
-        for r in tqdm(results):
-            _summary(ds, os.path.join(p, r))
+        if expand > 0:
+            dirs = [
+                os.path.join(p, x) for x in os.listdir(p)
+                if os.path.isdir(os.path.join(p, x))]
+            summarize(
+                data=data, if_data=if_data, key=key, offset=offset, path=dirs,
+                expand=expand - 1)
+        else:
+            print(p)
+            results = [
+                x for x in os.listdir(p)
+                if (x.endswith(".npz") and not x.endswith("_summary.npz"))]
+            for r in tqdm(results):
+                _summary(ds, os.path.join(p, r))
 
 
 def _parse():

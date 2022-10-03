@@ -76,7 +76,8 @@ class Method:
 
     @staticmethod
     def _boxplot(ax, x, data, color, **kwargs):
-        boxplot = ax.boxplot(data.T, patch_artist=True, positions=x, **kwargs)
+        boxplot = ax.boxplot(
+            data.T, patch_artist=True, positions=x, **kwargs)
         for median in boxplot['medians']:
             median.set_color(color)
             median.set_linewidth(2)
@@ -86,21 +87,22 @@ class Method:
     @staticmethod
     def _errorbar(ax, x, data, stddev=2, **kwargs):
         y = np.mean(data, axis=1)
-        yerr = np.sqrt(np.var(data, axis=1) / (data.shape[1] - 1)) * stddev
+        yerr = np.sqrt(np.var(data, axis=1)) * stddev
         ax.errorbar(x, y, yerr=yerr, **kwargs)
 
     def compare(
             self, ax, color='C0', boxplot=True, key="error"):
         """Add boxplots for mean absolute error on replicates to axes."""
         data = np.array([res.summary[key] for res in self.results])
-        pos = np.arange(len(self.splits))
         if boxplot:
-            self._boxplot(ax, pos, data, color, widths=0.4)
+            self._boxplot(ax, self.splits, data, color, widths=0.05)
         else:
             self._errorbar(
-                ax, pos, data, color=color, capsize=5, fmt='o-', stddev=2)
+                ax, self.splits, data, color=color, capsize=5,
+                fmt='o-', stddev=2)
 
-        ax.set_xticks(pos)
+        ax.set_xticks(self.splits)
+        ax.set_xlim(0, 1)
         ax.set_xticklabels(["{}%".format(int(p * 100)) for p in self.splits])
         ax.set_xlabel("Train Split")
         ax.set_ylabel("Mean Absolute Error")

@@ -70,15 +70,16 @@ class MatrixFactorization(hk.Module):
                 i, j = ij[:2]
                 return m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j])
 
-            return self._vvmap(_inner, ij)
+            return self._vvmap(_inner, ij), 0.0
 
 
 class MatrixFactorizationIF(MatrixFactorization):
     """Matrix factorization with interference support."""
 
-    def __init__(self, *args, s=3, **kwargs):
+    def __init__(self, *args, s=3, beta=0.001, **kwargs):
         super().__init__(*args, **kwargs)
         self.s = s
+        self.beta = beta
 
     def __call__(self, ijk, m_bar=None, d_bar=None, full=False):
         """Matrix Factorization with Interference.
@@ -92,15 +93,17 @@ class MatrixFactorizationIF(MatrixFactorization):
         d_stack = self.D(None)
         D = d_stack[:, :r]
 
-        V_s = d_stack[:, r:(1 + self.s) * r].reshape([-1, r, self.s])
-        V_g = d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s])
+        V_s = self.beta * (
+            d_stack[:, r:(1 + self.s) * r].reshape([-1, r, self.s]))
+        V_g = self.beta * (
+            d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s]))
 
         def _inner(ijk):
             i, j, k = ijk
             mFm = (k != -1) * jnp.dot(
                 jnp.matmul(V_s[j].T, M[i]), jnp.matmul(V_g[j].T, M[k]))
             return (
-                m_bar[i] + d_bar[j] + self.alpha * (jnp.dot(M[i], D[j]) + mFm))
+                m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j]) + mFm)
 
         C_hat_ijk = self._vvmap(_inner, ijk)
 

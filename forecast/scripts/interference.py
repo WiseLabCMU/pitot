@@ -61,6 +61,7 @@ def summarize(
     if out == "":
         out = data
     res = pd.concat(dfs)
+    res = res.drop_duplicates(subset=["file", "interferer", "runtime"])
     res.to_csv(out + ".csv", index=False)
 
     file_idx = res.apply(lambda row: ds.modules_dict[row["file"]], axis=1)

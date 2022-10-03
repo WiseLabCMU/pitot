@@ -4,6 +4,7 @@ import os
 import numpy as np
 import json
 import time
+import copy
 from tqdm import tqdm
 from functools import partial
 from argparse import ArgumentParser
@@ -61,7 +62,7 @@ PRESETS = {
     "Lr32": _cfg_linear(32),
     "Lr64": _cfg_linear(64),
     "Lr128": _cfg_linear(128),
-    # Ablations - Embedding Input Dimension (q=?)
+    # Ablations - Embedding Input Dimension (q=4)
     # p = 0.2, 0.4, 0.6, 0.8
     "Eq2": {("model_args", "dim"): 2},
     "Eq4": {("model_args", "dim"): 4},
@@ -72,17 +73,14 @@ PRESETS = {
     # p = 0.2, 0.4, 0.6, 0.8
     "Is1": _cfg_if(1),
     "Is2": _cfg_if(2),
-    "Is4": _cfg_if(3),
+    "Is3": _cfg_if(3),
     "Is4": _cfg_if(4),
     # Full experiments
     # p = 0.1, 0.2, ... 0.9
-    "interference": {
-        ("model",): "interference",
-        ("model_args", "s"): 3,
-        ("training_args", "beta"): (1.0, 1.0),
-        ("training_args", "batch"): (128, 128)
-    },
-    "embedding_ignore": {
+    "interference": _cfg_if(3),
+    # for linear just use linear = Lr64
+    "embedding": {},
+    "ignore": {
         ("training_args", "beta"): (1.0, 1.0),
         ("training_args", "batch"): (128, 128)
     },
@@ -102,7 +100,7 @@ def _override(default, overrides):
 
 def create_trainer(dataset, preset="embedding"):
     """Create training manager."""
-    config = _override(DEFAULT, PRESETS[preset])
+    config = _override(copy.deepcopy(DEFAULT), PRESETS[preset])
     model = partial(
         getattr(models, config["model"]),
         dataset, shape=dataset.shape, **config["model_args"])
