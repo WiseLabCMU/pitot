@@ -86,7 +86,7 @@ class MatrixFactorizationIF(MatrixFactorization):
 
         C_ijk =
             m_bar_i + d_bar_j + m_i^Td_j
-            + 1[valid k] * sum_k=1^K (m_i^Tv_s m_i'^Tv_g).
+            + 1[valid k] * sum_t=1^s (m_i^Tv[t]_s m_k^Tv[t]_g).
         """
         M = self.M(None)
         r = M.shape[1]
@@ -99,9 +99,11 @@ class MatrixFactorizationIF(MatrixFactorization):
             d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s]))
 
         def _inner(ijk):
-            i, j, k = ijk
-            mFm = (k != -1) * jnp.dot(
-                jnp.matmul(V_s[j].T, M[i]), jnp.matmul(V_g[j].T, M[k]))
+            i, j = ijk[:2]
+            mFm = 0.
+            for k in ijk[2:]:
+                mFm += (k != -1) * jnp.dot(
+                    jnp.matmul(V_s[j].T, M[i]), jnp.matmul(V_g[j].T, M[k]))
             return (
                 m_bar[i] + d_bar[j] + self.alpha * jnp.dot(M[i], D[j]) + mFm)
 

@@ -21,7 +21,7 @@ DEFAULT = {
         "layers": [64, 64], "dim": 4, "scale": 0.01},
     "training_args": {
         "beta": (1.0, 0.0), "batch": (128, 0), "replicates": 50,
-        "k": 10, "do_baseline": True
+        "k": 10, "do_baseline": True, "if_adjust": 5000
     }
 }
 
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     p = ArgumentParser()
     p.add_argument("methods", nargs="+", default=[])
     p.add_argument("--dataset", "-d", default="data.npz")
-    p.add_argument("--interference", "-i", default="if.npz")
+    p.add_argument("--interference", "-i", default="if2.npz")
     p.add_argument("--no-baseline", dest="baseline", action='store_false')
     p.add_argument("--sparsity", "-s", nargs="+", type=float, default=None)
     p.set_defaults(baseline=True)

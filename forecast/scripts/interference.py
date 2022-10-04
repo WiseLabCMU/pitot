@@ -62,10 +62,14 @@ def summarize(
         out = data
     res = pd.concat(dfs)
     res = res.drop_duplicates(subset=["file", "interferer", "runtime"])
+    res = res.dropna(how="any")
+
     res.to_csv(out + ".csv", index=False)
 
     file_idx = res.apply(lambda row: ds.modules_dict[row["file"]], axis=1)
-    if_idx = res.apply(lambda row: ds.modules_dict[row["interferer"]], axis=1)
+    if_idx = list(res.apply(
+        lambda row: [ds.modules_dict[m] for m in row["interferer"].split(".")],
+        axis=1))
     rt_idx = res.apply(lambda row: ds.runtimes_dict[row["runtime"]], axis=1)
     np.savez(
         out + ".npz",

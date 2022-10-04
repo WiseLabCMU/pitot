@@ -56,10 +56,13 @@ class Dataset:
         # Interference
         if if_data is not None:
             self.if_data = self._load(if_data)
-            self.if_ijk = jnp.stack([
-                self.if_data["module"],
-                self.if_data["runtime"],
-                self.if_data["interferer"]]).T
+            self.if_ijk = jnp.concatenate([
+                jnp.stack([
+                    self.if_data["module"],
+                    self.if_data["runtime"]
+                ]).T,
+                self.if_data["interferer"]
+            ], axis=1)
             self.interference = jnp.log(
                 self._get_key(self.if_data, key)) - jnp.log(offset)
             self.if_size = self.interference.shape[0]

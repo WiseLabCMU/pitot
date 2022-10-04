@@ -40,8 +40,8 @@ class CrossValidationTrainer:
     do_baseline : bool
         Use baseline as starting point, and fit residuals only.
     if_adjust : bool
-        Multiplier for interference data size to account for much
-        larger interference dataset.
+        Interference data size used for splitting; lower this to balance
+        the size of non-interference and interference datasets.
     cpu : jaxlib.xla_extension.Device
         CPU to use to save data. If None, uses first CPU (jax.devices('cpu')).
     """
@@ -53,7 +53,7 @@ class CrossValidationTrainer:
 
     def __init__(
             self, dataset, model, optimizer=None, beta=(1.0, 1.0), batch=64,
-            replicates=100, k=25, do_baseline=True, if_adjust=0.2, cpu=None):
+            replicates=100, k=25, do_baseline=True, if_adjust=5000, cpu=None):
 
         def _forward(*args, **kwargs):
             return model()(*args, **kwargs)
@@ -106,17 +106,15 @@ class CrossValidationTrainer:
         """
         k1, k2 = random.split(key, 2)
         ij_mf = split.batch(k1, repl.splits_mf.train, batch=self.batch[0])
-        ijk_mf = jnp.concatenate(
-            [ij_mf, -1 * jnp.ones((self.batch[0], 1), dtype=int)], axis=1)
         idx_if = split.batch(k2, repl.splits_if.train, batch=self.batch[1])
         ijk_if = self.dataset.index_if(idx_if)
 
         # Close over all but params so they aren't included in value_and_grad.
         def _loss_func(params):
             (pred_mf, pred_if) = self.model.apply(
-                params, [ijk_mf, ijk_if], m_bar=repl.m_bar, d_bar=repl.d_bar)
+                params, [ij_mf, ijk_if], m_bar=repl.m_bar, d_bar=repl.d_bar)
             return (
-                self.dataset.loss(pred_mf, ijk_mf, mode="mf") * self.beta[0]
+                self.dataset.loss(pred_mf, ij_mf, mode="mf") * self.beta[0]
                 + self.dataset.loss(pred_if, idx_if, mode="if") * self.beta[1])
 
         loss, grads = value_and_grad(_loss_func)(state.params)
@@ -237,7 +235,7 @@ class CrossValidationTrainer:
             key, k1, k2 = random.split(key, 3)
             if_train, if_test = split.vmap_iid(
                 k2, dim=self.dataset.if_size, replicates=self.replicates,
-                train=int(self.dataset.if_size * p * self.if_adjust))
+                train=int(p * self.if_adjust))
             if_train, if_val = split.vmap_crossval(k2, if_train, split=self.k)
             if_splits = self.Splits(train=if_train, val=if_val, test=if_test)
         else:
