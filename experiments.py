@@ -21,7 +21,7 @@ DEFAULT = {
         "layers": [64, 64], "dim": 4, "scale": 0.01},
     "training_args": {
         "beta": (1.0, 0.0), "batch": (128, 0), "replicates": 50,
-        "k": 10, "do_baseline": True, "if_adjust": 5000
+        "k": 10, "do_baseline": True, "if_adjust": 2800
     }
 }
 
@@ -77,7 +77,7 @@ PRESETS = {
     "Is4": _cfg_if(4),
     # Full experiments
     # p = 0.1, 0.2, ... 0.9
-    "interference": _cfg_if(3),
+    "interference": _cfg_if(1),
     # for linear just use linear = Lr64
     "embedding": {},
     "ignore": {

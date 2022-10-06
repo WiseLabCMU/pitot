@@ -202,10 +202,9 @@ class CrossValidationTrainer:
         Returns
         -------
         dict
-            Results dictionary. Values have the following shapes:
-            - train, val splits (MF objective): [replicates, k, samples, 2]
-            - train, val splits (IF objective): [replicates, k, samples]
-            - 
+            Results dictionary. Each value has replicates as the first axis,
+            and k-fold cross validation replicates as the second axis if
+            present for that key.
         """
         # Create key
         if isinstance(key, int):
