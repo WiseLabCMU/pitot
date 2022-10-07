@@ -46,14 +46,12 @@ def _cfg_if(s):
 
 PRESETS = {
     # Ablations - Embedding Dimension (r=64)
-    # p = 0.2, 0.4, 0.6, 0.8
     "Er8": {("model_args", "layers"): [64, 8]},
     "Er16": {("model_args", "layers"): [64, 16]},
     "Er32": {("model_args", "layers"): [64, 32]},
     "Er64": {("model_args", "layers"): [64, 64]},
     "Er128": {("model_args", "layers"): [64, 128]},
     # Ablations - Embedding Dimension, Linear (r=64)
-    # p = 0.1, 0.2, ... 0.9
     "Lr1": _cfg_linear(1),
     "Lr2": _cfg_linear(2),
     "Lr4": _cfg_linear(4),
@@ -63,29 +61,33 @@ PRESETS = {
     "Lr64": _cfg_linear(64),
     "Lr128": _cfg_linear(128),
     # Ablations - Embedding Input Dimension (q=4)
-    # p = 0.2, 0.4, 0.6, 0.8
     "Eq2": {("model_args", "dim"): 2},
     "Eq4": {("model_args", "dim"): 4},
     "Eq8": {("model_args", "dim"): 8},
     "Eq16": {("model_args", "dim"): 16},
     "Eq32": {("model_args", "dim"): 32},
     # Ablations - Interference Types (s=?)
-    # p = 0.2, 0.4, 0.6, 0.8
     "Is1": _cfg_if(1),
     "Is2": _cfg_if(2),
     "Is3": _cfg_if(3),
     "Is4": _cfg_if(4),
     # Full experiments
-    # p = 0.1, 0.2, ... 0.9
-    "interference": _cfg_if(1),
-    # for linear just use linear = Lr64
-    "embedding": {},
+    # for linear use linear = Lr64
+    # for interference use interference = Is1
+    # for embedding use embedding = Eq4 = Er64
     "ignore": {
         ("training_args", "beta"): (1.0, 1.0),
         ("training_args", "batch"): (128, 128)
     },
     "device_only": {("model_args", "X_m"): None},
     "module_only": {("model_args", "X_d"): None},
+    # Other datasets
+    "if3": _cfg_if(1),
+    "if3.mc": _cfg_if(1),
+    "if.mc": _cfg_if(1),
+    "e.if3": {("model_args", "layers"): [64, 64]},
+    "e.if3.mc": {("model_args", "layers"): [64, 64]},
+    "e.if.mc": {("model_args", "layers"): [64, 64]},
 }
 
 

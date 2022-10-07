@@ -31,6 +31,12 @@ Full: [0.1, 0.2, ... 0.9]
 - Device Only
 - Module Only
 
+Other Datasets
 ```
-python3 experiments.py embedding interference device_only module_only ignore
+python3 experiments.py -i if3.npz if3
+python3 experiments.py -i if.mc.npz if.mc
+python3 experiments.py -i if3.mc.npz if3.mc
+python3 experiments.py -i if3.npz e.if3
+python3 experiments.py -i if.mc.npz e.if.mc
+python3 experiments.py -i if3.mc.npz e.if3.mc
 ```
