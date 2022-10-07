@@ -1,6 +1,8 @@
 """Result plotting."""
 
 import os
+import json
+from tqdm.notebook import tqdm
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -83,29 +85,32 @@ class Method:
             median.set_linewidth(2)
         for box in boxplot['boxes']:
             box.set_facecolor('white')
+        return boxplot
 
     @staticmethod
     def _errorbar(ax, x, data, stddev=2, **kwargs):
         y = np.mean(data, axis=1)
         yerr = np.sqrt(np.var(data, axis=1)) * stddev
-        ax.errorbar(x, y, yerr=yerr, **kwargs)
+        return ax.errorbar(x, y, yerr=yerr, **kwargs)
 
     def compare(
-            self, ax, color='C0', boxplot=True, key="error"):
+            self, ax, color='C0', boxplot=True, key="error", fmt='o-'):
         """Add boxplots for mean absolute error on replicates to axes."""
         data = np.array([res.summary[key] for res in self.results])
         if boxplot:
-            self._boxplot(ax, self.splits, data, color, widths=0.05)
+            res = self._boxplot(ax, self.splits, data, color, widths=0.05)
         else:
-            self._errorbar(
+            res, _, _ = self._errorbar(
                 ax, self.splits, data, color=color, capsize=5,
-                fmt='o-', stddev=2)
+                fmt=fmt, stddev=2)
 
         ax.set_xticks(self.splits)
         ax.set_xlim(0, 1)
         ax.set_xticklabels(["{}%".format(int(p * 100)) for p in self.splits])
         ax.set_xlabel("Train Split")
         ax.set_ylabel("Mean Absolute Error")
+
+        return res
 
     def histogram(self, axs=None, **kwargs):
         """Plot histograms for all experiments."""
@@ -151,3 +156,55 @@ class Method:
         ax.set_xlabel("Train Split")
         ax.set_ylabel("Absolute Error Bound")
         ax.legend(loc='upper right')
+
+
+class Results:
+    """Collection of all results."""
+
+    def __init__(
+            self, dataset, base_dir="results",
+            manifest="results/manifest.json", baseline_key="Lr8"):
+
+        self.base_dir = base_dir
+        self.dataset = dataset
+        self.baseline_key = baseline_key
+
+        if isinstance(manifest, str):
+            with open(manifest) as f:
+                self.methods = json.load(f)
+        else:
+            self.methods = manifest
+
+        self.results = {
+            method: Method(os.path.join(base_dir, method), self.dataset, desc)
+            for method, desc in tqdm(self.methods.items())
+        }
+
+    def plots(
+            self, subset, ax=None, boxplot=True, baseline=True, key="error",
+            labels={}, colors=None, fmt=None):
+        """Generate comparison plots."""
+        if ax is None:
+            _, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+        if colors is None:
+            colors = [
+                "C{}".format(i + (1 if baseline else 0))
+                for i in range(len(subset))]
+
+        if fmt is None:
+            fmt = ['o-' for _ in subset]
+
+        legend = [labels.get(m, self.methods.get(m)) for m in subset]
+        lns = []
+        for color, method, _fmt in zip(colors, subset, fmt):
+            lns.append(self.results[method].compare(
+                ax, color=color, boxplot=boxplot, key=key, fmt=_fmt))
+
+        if baseline:
+            colors = ["C0"] + colors
+            legend = ["Baseline"] + legend
+            lns.append(self.results[self.baseline_key].compare(
+                ax, color='C0', boxplot=boxplot, key="baseline"))
+
+        ax.legend(lns, legend, loc='upper right')
