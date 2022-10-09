@@ -204,7 +204,7 @@ class Results:
         if baseline:
             colors = ["C0"] + colors
             legend = ["Baseline"] + legend
-            lns.append(self.results[self.baseline_key].compare(
-                ax, color='C0', boxplot=boxplot, key="baseline"))
+            lns = [self.results[self.baseline_key].compare(
+                ax, color='C0', boxplot=boxplot, key="baseline")] + lns
 
         ax.legend(lns, legend, loc='upper right')
