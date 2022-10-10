@@ -85,9 +85,17 @@ PRESETS = {
     "if3": _cfg_if(1),
     "if3.mc": _cfg_if(1),
     "if.mc": _cfg_if(1),
-    "e.if3": {("model_args", "layers"): [64, 64]},
-    "e.if3.mc": {("model_args", "layers"): [64, 64]},
-    "e.if.mc": {("model_args", "layers"): [64, 64]},
+    "e.if3": {},
+    "e.if3.mc": {},
+    "e.if.mc": {},
+    "ig.if3.mc": {
+        ("training_args", "beta"): (1.0, 1.0),
+        ("training_args", "batch"): (128, 128)
+    },
+    "ig.if3": {
+        ("training_args", "beta"): (1.0, 1.0),
+        ("training_args", "batch"): (128, 128)
+    }
 }
 
 

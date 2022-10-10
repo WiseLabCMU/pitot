@@ -166,6 +166,14 @@ class Dataset:
         else:
             return jnp.mean(jnp.abs(pred - actual))
 
+    def perror(self, pred, indices=None, mode="mf", full=False):
+        """Compute percent error."""
+        pred, actual = self._index(pred, indices=indices, mode=mode)
+        if full:
+            return jnp.exp(pred - actual) - 1
+        else:
+            return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
+
     def plot(self, matrix=None, ax=None, figsize=None, title=None):
         """Plot results."""
         if matrix is None:

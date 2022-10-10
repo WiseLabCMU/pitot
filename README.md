@@ -39,4 +39,6 @@ python3 experiments.py -i if3.mc.npz if3.mc
 python3 experiments.py -i if3.npz e.if3
 python3 experiments.py -i if.mc.npz e.if.mc
 python3 experiments.py -i if3.mc.npz e.if3.mc
+python3 experiments.py -i if3.mc.npz ig.if3.mc
+python3 experiments.py -i if3.npz ig.if3
 ```

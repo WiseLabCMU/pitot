@@ -60,6 +60,7 @@ class Result:
 
         ax.axvline(np.mean(x1), linestyle='--', color='C0')
         ax.axvline(np.mean(x2), linestyle='--', color='C1')
+        ax.grid()
 
 
 class Method:
@@ -94,9 +95,13 @@ class Method:
         return ax.errorbar(x, y, yerr=yerr, **kwargs)
 
     def compare(
-            self, ax, color='C0', boxplot=True, key="error", fmt='o-'):
+            self, ax, color='C0', boxplot=True, key="error", fmt='o-',
+            normalize=None):
         """Add boxplots for mean absolute error on replicates to axes."""
-        data = np.array([res.summary[key] for res in self.results])
+        data = np.array([res.summary[key] for res in self.results]) * 100
+        if normalize is not None:
+            data /= normalize.reshape(-1, 1)
+
         if boxplot:
             res = self._boxplot(ax, self.splits, data, color, widths=0.05)
         else:
@@ -108,7 +113,8 @@ class Method:
         ax.set_xlim(0, 1)
         ax.set_xticklabels(["{}%".format(int(p * 100)) for p in self.splits])
         ax.set_xlabel("Train Split")
-        ax.set_ylabel("Mean Absolute Error")
+        ax.set_ylabel("Percent Error")
+        ax.grid()
 
         return res
 
@@ -121,6 +127,7 @@ class Method:
             res.compare_plot(ax, **kwargs)
             psplit = int(split * 100)
             ax.set_title("train={}% / test={}%".format(psplit, 100 - psplit))
+            ax.grid()
 
         axs[0, 0].legend(loc='upper left')
 
@@ -133,6 +140,7 @@ class Method:
             res.plot_training(ax, **kwargs)
             psplit = int(split * 100)
             ax.set_title("train={}% / test={}%".format(psplit, 100 - psplit))
+            ax.grid()
 
     def bounds(self, ax, percentiles=[95, 90, 80, 50]):
         """Plot percentile absolute error bounds."""
@@ -154,8 +162,9 @@ class Method:
             "{}%\nn={}".format(int(sp * 100), int(s))
             for sp, s in zip(self.splits, sizes)])
         ax.set_xlabel("Train Split")
-        ax.set_ylabel("Absolute Error Bound")
+        ax.set_ylabel("Percent Error Bound")
         ax.legend(loc='upper right')
+        ax.grid()
 
 
 class Results:
@@ -182,7 +191,7 @@ class Results:
 
     def plots(
             self, subset, ax=None, boxplot=True, baseline=True, key="error",
-            labels={}, colors=None, fmt=None):
+            labels={}, colors=None, fmt=None, normalize=None):
         """Generate comparison plots."""
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(8, 6))
@@ -191,20 +200,29 @@ class Results:
             colors = [
                 "C{}".format(i + (1 if baseline else 0))
                 for i in range(len(subset))]
+            if baseline is True:
+                colors += ["C0"]
 
         if fmt is None:
-            fmt = ['o-' for _ in subset]
+            fmt = ['o-' for _ in subset] + ["o-"]
+
+        if isinstance(normalize, str):
+            normalize = np.mean(np.array(
+                [res.summary[key] for res in self.results[normalize].results]),
+                axis=1) * 100
 
         legend = [labels.get(m, self.methods.get(m)) for m in subset]
         lns = []
         for color, method, _fmt in zip(colors, subset, fmt):
             lns.append(self.results[method].compare(
-                ax, color=color, boxplot=boxplot, key=key, fmt=_fmt))
+                ax, color=color, boxplot=boxplot, key=key, fmt=_fmt,
+                normalize=normalize))
 
-        if baseline:
-            colors = ["C0"] + colors
+        if baseline is not False:
             legend = ["Baseline"] + legend
             lns = [self.results[self.baseline_key].compare(
-                ax, color='C0', boxplot=boxplot, key="baseline")] + lns
+                ax, color=colors[-1], boxplot=boxplot, key="baseline",
+                fmt=fmt[-1])] + lns
 
         ax.legend(lns, legend, loc='upper right')
+        ax.grid(b=True)

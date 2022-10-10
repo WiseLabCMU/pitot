@@ -16,7 +16,7 @@ def _vresults(ds, data, indices, **kwargs):
     return (
         np.array(vmap(partial(ds.error, **kwargs))(data, indices=indices)),
         np.array(vmap(
-            partial(ds.error, full=True, **kwargs))(data, indices=indices)))
+            partial(ds.perror, full=True, **kwargs))(data, indices=indices)))
 
 
 def _summary(ds, path):
