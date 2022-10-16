@@ -40,8 +40,7 @@ def create_trainer(dataset, preset="embedding"):
 def _experiment(name, trainer, p, config={}):
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
     start = time.time()
-    # epoch_size = int(EPOCH_SIZE_MULTIPLIER * p)
-    epoch_size = 2
+    epoch_size = int(EPOCH_SIZE_MULTIPLIER * p)
     results = trainer.train_replicates(
         p=p, tqdm=pbar, epochs=EPOCHS, epoch_size=epoch_size)
 
