@@ -139,34 +139,36 @@ class BaselineModel(hk.Module):
 
     def __call__(self, ij, m_bar=None, d_bar=None, full=False):
         """Non-matrix models."""
+        baseline = m_bar[ij[:, 0]] + d_bar[ij[:, 1]]
+
         if full:
             x, y = jnp.meshgrid(
                 jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
-            C_hat = jax.vmap(self._call)(jnp.stack([x, y], axis=-1)).T
-            return self._lcall(ij), {"C_hat": C_hat}
+            mlp = jax.vmap(self._call)(jnp.stack([x, y], axis=-1)).T
+            C_hat = (
+                m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
+                + self.alpha * mlp)
+            return baseline + self.alpha * self._lcall(ij), {"C_hat": C_hat}
         else:
-            return self._lcall(ij)
+            return baseline + self.alpha * self._lcall(ij)
 
 
 class NaiveMLP(BaselineModel):
     """MLP-only model without matrix embedding."""
 
     def __init__(
-            self, M, D, layers=[64, 64], shape=(10, 10), name="NaiveMLP"):
+            self, M, D, alpha=0.0001, layers=[64, 64], shape=(10, 10),
+            name="NaiveMLP"):
         super().__init__(name=name)
         self.mlp = simple_mlp(
             list(layers) + [1], activation=jax.nn.tanh, name="mlp")
         self.M = M
         self.D = D
+        self.alpha = alpha
         self.shape = shape
 
     def _call(self, ij):
-        features = [
-            self.M(ij[:, 0]), self.D(ij[:, 1]), (
-                self.M(ij[:, 2]) if ij.shape[1] == 3
-                else jnp.zeros_like(self.M(ij[:, 0]))
-            )]
-        x_in = jnp.concatenate(features, axis=1)
+        x_in = jnp.concatenate([self.M(ij[:, 0]), self.D(ij[:, 1])], axis=1)
         return self.mlp(x_in).reshape(-1)
 
 
@@ -174,10 +176,12 @@ class DeviceModel(BaselineModel):
     """Per-device modeling using WebAssembly as a virtual CPU simulator."""
 
     def __init__(
-            self, M, layers=[64, 64], shape=(10, 10), name="DeviceModel"):
+            self, M, alpha=0.0001, layers=[64, 64], shape=(10, 10),
+            name="DeviceModel"):
         super().__init__(name=name)
         self.M = M
         self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[1])
+        self.alpha = alpha
         self.shape = shape
 
     def _call(self, ij):
@@ -226,14 +230,14 @@ def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
         alpha=alpha, shape=shape, name="linear")
 
 
-def naive_mlp(dataset, shape=(10, 10), layers=[64, 64]):
+def naive_mlp(dataset, alpha=0.001, shape=(10, 10), layers=[64, 64]):
     """MLP-only model without matrix embedding."""
     M = SideInformation(dataset.x_m, name="x_m")
     D = SideInformation(dataset.x_d, name="X_d")
     return NaiveMLP(M, D, layers=layers, shape=shape, name="naive_mlp")
 
 
-def device_mlp(dataset, shape=(10, 10), layers=[64, 64]):
+def device_mlp(dataset, alpha=0.001, shape=(10, 10), layers=[64, 64]):
     """Per-device MLP model."""
     M = SideInformation(dataset.x_m, name="x_m")
     return DeviceModel(M, layers=layers, shape=shape, name="device_mlp")
