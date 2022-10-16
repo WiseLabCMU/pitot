@@ -1,15 +1,18 @@
-"""Matrix Factorization Models.
+"""Matrix Factorization and Baseline Models.
 
-The exposed models (embedding, interference, linear) take a Dataset and
-kwargs with configuration.
+The exposed models (embedding, interference, linear, naive_mlp, device_mlp)
+take a Dataset and kwargs with configuration. The actual classes are not
+intended to be used directly.
 """
 
 from functools import partial
+
+import jax
 from jax import numpy as jnp
-from jax import vmap
 import haiku as hk
 
-from .modules import LearnedFeatures, HybridEmbedding
+from .modules import (
+    LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp, MultiMLP)
 
 
 class MatrixFactorization(hk.Module):
@@ -38,9 +41,16 @@ class MatrixFactorization(hk.Module):
 
     @staticmethod
     def _vvmap(func, ij):
+        """Apply vmap to input arguments ij, repeated for each element of ij.
+
+        If ij is not a list or tuple, it is promoted to a list, and vmap is
+        applied to each as usual.
+        """
         if not isinstance(ij, (list, tuple)):
             ij = [ij]
-        return [None if split is None else vmap(func)(split) for split in ij]
+        return [
+            None if split is None else jax.vmap(func)(split)
+            for split in ij]
 
     def __call__(self, ij, m_bar=None, d_bar=None, full=False):
         """Ordinary Matrix Factorization with External Baseline.
@@ -48,7 +58,6 @@ class MatrixFactorization(hk.Module):
         C_ij_hat = m_bar_i + d_bar_j + m_i^Td_j.
 
         NOTE: k (column 2) of ij (ijk) is ignored.
-
         NOTE: ij is a list of arrays.
         """
         M = self.M(None)
@@ -90,13 +99,11 @@ class MatrixFactorizationIF(MatrixFactorization):
         """
         M = self.M(None)
         r = M.shape[1]
-        d_stack = self.D(None)
-        D = d_stack[:, :r]
+        dF = self.D(None)
+        D = dF[:, :r]
 
-        V_s = self.beta * (
-            d_stack[:, r:(1 + self.s) * r].reshape([-1, r, self.s]))
-        V_g = self.beta * (
-            d_stack[:, (1 + self.s) * r:].reshape([-1, r, self.s]))
+        V_s = self.beta * (dF[:, r:(1 + self.s) * r].reshape([-1, r, self.s]))
+        V_g = self.beta * (dF[:, (1 + self.s) * r:].reshape([-1, r, self.s]))
 
         def _inner(ijk):
             i, j = ijk[:2]
@@ -117,6 +124,60 @@ class MatrixFactorizationIF(MatrixFactorization):
                 "C_hat": C_hat, "M": M, "D": D, "V_s": V_s, "V_g": V_g}
         else:
             return C_hat_ijk
+
+
+class BaselineModel(hk.Module):
+    """Abstract class with call wrapper."""
+
+    def _call(self, ij):
+        raise NotImplementedError()
+
+    def _lcall(self, ij):
+        if not isinstance(ij, (list, tuple)):
+            ij = [ij]
+        return [self._call(split) for split in ij]
+
+    def __call__(self, ij, m_bar=None, d_bar=None, full=False):
+        """Non-matrix models."""
+        if full:
+            x, y = jnp.meshgrid(
+                jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
+            C_hat = jax.vmap(self._call)(jnp.stack([x, y], axis=-1)).T
+            return self._lcall(ij), {"C_hat": C_hat}
+        else:
+            return self._lcall(ij)
+
+
+class NaiveMLP(BaselineModel):
+    """MLP-only model without matrix embedding."""
+
+    def __init__(
+            self, M, D, layers=[64, 64], shape=(10, 10), name="NaiveMLP"):
+        super().__init__(name=name)
+        self.mlp = simple_mlp(
+            list(layers) + [1], activation=jax.nn.tanh, name="mlp")
+        self.M = M
+        self.D = D
+        self.shape = shape
+
+    def _call(self, ij):
+        x_in = jnp.concatenate([self.M(ij[:, 0]), self.D(ij[:, 0])], axis=1)
+        return self.mlp(x_in).reshape(-1)
+
+
+class DeviceModel(BaselineModel):
+    """Per-device modeling using WebAssembly as a virtual CPU simulator."""
+
+    def __init__(
+            self, M, layers=[64, 64], shape=(10, 10), name="DeviceModel"):
+        super().__init__(name=name)
+        self.M = M
+        self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[1])
+        self.shape = shape
+
+    def _call(self, ij):
+        res = self.mlps(self.M(ij[:, 0]), ij[:, 1]).reshape(-1)
+        return res
 
 
 def _feature_embedding(data, layers=[], dim=4, scale=0.01):
@@ -158,3 +219,16 @@ def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
         partial(LearnedFeatures, dim=dim, scale=scale),
         partial(LearnedFeatures, dim=dim, scale=scale),
         alpha=alpha, shape=shape, name="linear")
+
+
+def naive_mlp(dataset, shape=(10, 10), layers=[64, 64]):
+    """MLP-only model without matrix embedding."""
+    M = SideInformation(dataset.x_m, name="x_m")
+    D = SideInformation(dataset.x_d, name="X_d")
+    return NaiveMLP(M, D, layers=layers, shape=shape, name="naive_mlp")
+
+
+def device_mlp(dataset, shape=(10, 10), layers=[64, 64]):
+    """Per-device MLP model."""
+    M = SideInformation(dataset.x_m, name="x_m")
+    return DeviceModel(M, layers=layers, shape=shape, name="device_mlp")

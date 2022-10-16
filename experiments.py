@@ -10,93 +10,12 @@ from functools import partial
 from argparse import ArgumentParser
 import optax
 
-from forecast import Dataset, CrossValidationTrainer
+from forecast import Dataset, CrossValidationTrainer, presets
 from forecast.prediction import models
 
 
-DEFAULT = {
-    "model": "embedding",
-    "model_args": {
-        "X_m": True, "X_d": True, "alpha": 0.001,
-        "layers": [64, 64], "dim": 4, "scale": 0.01},
-    "training_args": {
-        "beta": (1.0, 0.0), "batch": (128, 0), "replicates": 50,
-        "k": 10, "do_baseline": True, "if_adjust": 2800
-    }
-}
-
 EPOCHS = 100
 EPOCH_SIZE_MULTIPLIER = 250
-
-
-def _cfg_linear(dim):
-    return {
-        ("model",): "linear",
-        ("model_args",): {"dim": dim, "alpha": 0.001, "scale": 0.01}
-    }
-
-
-def _cfg_if(s):
-    return {
-        ("model",): "interference", ("model_args", "s"): s,
-        ("training_args", "beta"): (1.0, 1.0),
-        ("training_args", "batch"): (128, 128)
-    }
-
-
-PRESETS = {
-    # Ablations - Embedding Dimension (r=64)
-    "Er8": {("model_args", "layers"): [64, 8]},
-    "Er16": {("model_args", "layers"): [64, 16]},
-    "Er32": {("model_args", "layers"): [64, 32]},
-    "Er64": {("model_args", "layers"): [64, 64]},
-    "Er128": {("model_args", "layers"): [64, 128]},
-    # Ablations - Embedding Dimension, Linear (r=64)
-    "Lr1": _cfg_linear(1),
-    "Lr2": _cfg_linear(2),
-    "Lr4": _cfg_linear(4),
-    "Lr8": _cfg_linear(8),
-    "Lr16": _cfg_linear(16),
-    "Lr32": _cfg_linear(32),
-    "Lr64": _cfg_linear(64),
-    "Lr128": _cfg_linear(128),
-    # Ablations - Embedding Input Dimension (q=4)
-    "Eq2": {("model_args", "dim"): 2},
-    "Eq4": {("model_args", "dim"): 4},
-    "Eq8": {("model_args", "dim"): 8},
-    "Eq16": {("model_args", "dim"): 16},
-    "Eq32": {("model_args", "dim"): 32},
-    # Ablations - Interference Types (s=?)
-    "Is1": _cfg_if(1),
-    "Is2": _cfg_if(2),
-    "Is3": _cfg_if(3),
-    "Is4": _cfg_if(4),
-    # Full experiments
-    # for linear use linear = Lr64
-    # for interference use interference = Is1
-    # for embedding use embedding = Eq4 = Er64
-    "ignore": {
-        ("training_args", "beta"): (1.0, 1.0),
-        ("training_args", "batch"): (128, 128)
-    },
-    "device_only": {("model_args", "X_m"): None},
-    "module_only": {("model_args", "X_d"): None},
-    # Other datasets
-    "if3": _cfg_if(1),
-    "if3.mc": _cfg_if(1),
-    "if.mc": _cfg_if(1),
-    "e.if3": {},
-    "e.if3.mc": {},
-    "e.if.mc": {},
-    "ig.if3.mc": {
-        ("training_args", "beta"): (1.0, 1.0),
-        ("training_args", "batch"): (128, 128)
-    },
-    "ig.if3": {
-        ("training_args", "beta"): (1.0, 1.0),
-        ("training_args", "batch"): (128, 128)
-    }
-}
 
 
 def _override(default, overrides):
@@ -110,7 +29,7 @@ def _override(default, overrides):
 
 def create_trainer(dataset, preset="embedding"):
     """Create training manager."""
-    config = _override(copy.deepcopy(DEFAULT), PRESETS[preset])
+    config = _override(copy.deepcopy(presets.DEFAULT), presets.PRESETS[preset])
     model = partial(
         getattr(models, config["model"]),
         dataset, shape=dataset.shape, **config["model_args"])
@@ -121,7 +40,8 @@ def create_trainer(dataset, preset="embedding"):
 def _experiment(name, trainer, p, config={}):
     pbar = partial(tqdm, desc="{} : {}".format(name, p))
     start = time.time()
-    epoch_size = int(EPOCH_SIZE_MULTIPLIER * p)
+    # epoch_size = int(EPOCH_SIZE_MULTIPLIER * p)
+    epoch_size = 2
     results = trainer.train_replicates(
         p=p, tqdm=pbar, epochs=EPOCHS, epoch_size=epoch_size)
 
