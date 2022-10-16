@@ -161,7 +161,12 @@ class NaiveMLP(BaselineModel):
         self.shape = shape
 
     def _call(self, ij):
-        x_in = jnp.concatenate([self.M(ij[:, 0]), self.D(ij[:, 0])], axis=1)
+        features = [
+            self.M(ij[:, 0]), self.D(ij[:, 1]), (
+                self.M(ij[:, 2]) if ij.shape[1] == 3
+                else jnp.zeros_like(self.M(ij[:, 0]))
+            )]
+        x_in = jnp.concatenate(features, axis=1)
         return self.mlp(x_in).reshape(-1)
 
 
