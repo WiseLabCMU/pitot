@@ -132,15 +132,15 @@ class BaselineModel(hk.Module):
     def _call(self, ij):
         raise NotImplementedError()
 
-    def _lcall(self, ij):
+    def _lcall(self, ij, m_bar=None, d_bar=None):
         if not isinstance(ij, (list, tuple)):
             ij = [ij]
-        return [self._call(split) for split in ij]
+        return [
+            m_bar[split[:, 0]] + d_bar[split[:, 1]]
+            + self.alpha * self._call(split) for split in ij]
 
     def __call__(self, ij, m_bar=None, d_bar=None, full=False):
         """Non-matrix models."""
-        baseline = m_bar[ij[:, 0]] + d_bar[ij[:, 1]]
-
         if full:
             x, y = jnp.meshgrid(
                 jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
@@ -148,9 +148,9 @@ class BaselineModel(hk.Module):
             C_hat = (
                 m_bar.reshape([-1, 1]) + d_bar.reshape([1, -1])
                 + self.alpha * mlp)
-            return baseline + self.alpha * self._lcall(ij), {"C_hat": C_hat}
+            return self._lcall(ij, m_bar=m_bar, d_bar=d_bar), {"C_hat": C_hat}
         else:
-            return baseline + self.alpha * self._lcall(ij)
+            return self._lcall(ij, m_bar=m_bar, d_bar=d_bar)
 
 
 class NaiveMLP(BaselineModel):
