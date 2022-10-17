@@ -84,10 +84,10 @@ PRESETS = {
     # Baselines
     "naive_mlp": {
         ("model",): "naive_mlp",
-        ("model_args",): {"layers": (64, 64)}
+        ("model_args",): {"layers": (64, 64), "alpha": 0.1}
     },
     "device_mlp": {
         ("model",): "device_mlp",
-        ("model_args",): {"layers": (32,)}
+        ("model_args",): {"layers": (32,), "alpha": 0.1}
     }
 }

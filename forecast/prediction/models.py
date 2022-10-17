@@ -157,7 +157,7 @@ class NaiveMLP(BaselineModel):
     """MLP-only model without matrix embedding."""
 
     def __init__(
-            self, M, D, alpha=0.0001, layers=[64, 64], shape=(10, 10),
+            self, M, D, alpha=0.1, layers=[64, 64], shape=(10, 10),
             name="NaiveMLP"):
         super().__init__(name=name)
         self.mlp = simple_mlp(
@@ -176,7 +176,7 @@ class DeviceModel(BaselineModel):
     """Per-device modeling using WebAssembly as a virtual CPU simulator."""
 
     def __init__(
-            self, M, alpha=0.0001, layers=[64, 64], shape=(10, 10),
+            self, M, alpha=0.1, layers=[64, 64], shape=(10, 10),
             name="DeviceModel"):
         super().__init__(name=name)
         self.M = M
@@ -230,14 +230,14 @@ def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
         alpha=alpha, shape=shape, name="linear")
 
 
-def naive_mlp(dataset, alpha=0.001, shape=(10, 10), layers=[64, 64]):
+def naive_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """MLP-only model without matrix embedding."""
     M = SideInformation(dataset.x_m, name="x_m")
     D = SideInformation(dataset.x_d, name="X_d")
     return NaiveMLP(M, D, layers=layers, shape=shape, name="naive_mlp")
 
 
-def device_mlp(dataset, alpha=0.001, shape=(10, 10), layers=[64, 64]):
+def device_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """Per-device MLP model."""
     M = SideInformation(dataset.x_m, name="x_m")
     return DeviceModel(M, layers=layers, shape=shape, name="device_mlp")
