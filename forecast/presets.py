@@ -92,7 +92,7 @@ PRESETS = {
     },
     # Ablations - no baseline
     "embedding_nb": {("training_args", "do_baseline"): False},
-    "naive_mlp": {("training_args", "do_baseline"): False},
-    "device_mlp": {("training_args", "do_baseline"): False},
+    "naive_mlp_nb": {("training_args", "do_baseline"): False},
+    "device_mlp_nb": {("training_args", "do_baseline"): False},
     "linear_nb": {("training_args", "do_baseline"): False, **_cfg_linear(64)}
 }
