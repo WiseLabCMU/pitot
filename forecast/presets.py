@@ -89,5 +89,10 @@ PRESETS = {
     "device_mlp": {
         ("model",): "device_mlp",
         ("model_args",): {"layers": (32,), "alpha": 0.1}
-    }
+    },
+    # Ablations - no baseline
+    "embedding_nb": {("training_args", "do_baseline"): False},
+    "naive_mlp": {("training_args", "do_baseline"): False},
+    "device_mlp": {("training_args", "do_baseline"): False},
+    "linear_nb": {("training_args", "do_baseline"): False, **_cfg_linear(64)}
 }

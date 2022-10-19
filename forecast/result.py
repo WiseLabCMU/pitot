@@ -89,14 +89,16 @@ class Method:
         return boxplot
 
     @staticmethod
-    def _errorbar(ax, x, data, stddev=2, **kwargs):
+    def _errorbar(ax, x, data, stddev=2, stderr=False, **kwargs):
         y = np.mean(data, axis=1)
         yerr = np.sqrt(np.var(data, axis=1)) * stddev
+        if stderr:
+            yerr /= np.sqrt(data.shape[1])
         return ax.errorbar(x, y, yerr=yerr, **kwargs)
 
     def compare(
             self, ax, color='C0', boxplot=True, key="error", fmt='o-',
-            normalize=None):
+            normalize=None, stderr=False):
         """Add boxplots for mean absolute error on replicates to axes."""
         data = np.array([res.summary[key] for res in self.results]) * 100
         if normalize is not None:
@@ -107,7 +109,7 @@ class Method:
         else:
             res, _, _ = self._errorbar(
                 ax, self.splits, data, color=color, capsize=5,
-                fmt=fmt, stddev=2)
+                fmt=fmt, stddev=2, stderr=stderr)
 
         ax.set_xticks(self.splits)
         ax.set_xlim(0, 1)
@@ -191,7 +193,7 @@ class Results:
 
     def plots(
             self, subset, ax=None, boxplot=True, baseline=True, key="error",
-            labels={}, colors=None, fmt=None, normalize=None):
+            labels={}, colors=None, fmt=None, normalize=None, stderr=False):
         """Generate comparison plots."""
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(8, 6))
@@ -216,13 +218,13 @@ class Results:
         for color, method, _fmt in zip(colors, subset, fmt):
             lns.append(self.results[method].compare(
                 ax, color=color, boxplot=boxplot, key=key, fmt=_fmt,
-                normalize=normalize))
+                stderr=stderr, normalize=normalize))
 
         if baseline is not False:
             legend = ["Baseline"] + legend
             lns = [self.results[self.baseline_key].compare(
                 ax, color=colors[-1], boxplot=boxplot, key="baseline",
-                fmt=fmt[-1])] + lns
+                stderr=stderr, fmt=fmt[-1])] + lns
 
         ax.legend(lns, legend, loc='upper right')
         ax.grid(b=True)
