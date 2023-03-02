@@ -1,0 +1,47 @@
+"""Process opcode data."""
+
+import numpy as np
+import json
+from matplotlib import pyplot as plt
+
+from dataset import apply_recursive, Index, Matrix
+
+
+_desc = "Aggregate benchmark module opcode counts."
+
+
+def _load(path):
+    with open(path) as f:
+        data = json.load(f)
+    return (
+        np.array(data["opcodes"], dtype=np.uint32),
+        data["module"]["file"].replace("wasm/", "").replace(".wasm", ""))
+
+
+def _parse(p):
+    p.add_argument(
+        "-p", "--path", help="Path to dataset.", default="data/opcodes")
+    p.add_argument(
+        "-o", "--out", help="Output (base) path.", default="opcodes")
+    p.add_argument(
+        "-d", "--plot", help="Draw plot.", action='store_true', default=False)
+    return p
+
+
+def _main(args):
+    data, files = list(zip(*apply_recursive(args.path, _load)))
+    data = np.array(data)
+    nonzero = np.where(np.sum(data, axis=0) > 10)[0]
+
+    opcodes = Index(
+        nonzero, display=["{:02x}".format(int(i)) for i in nonzero])
+    mat = Matrix(
+        data=data[:, nonzero], rows=Index(files), cols=opcodes
+    )[np.argsort(files)]
+
+    mat.save(args.out + ".npz", rows="module", cols="opcode")
+
+    if args.plot:
+        fig, ax = plt.subplots(figsize=(40, 40))
+        (mat @ (lambda x: np.log(x + 1))).plot(ax)
+        fig.savefig(args.out + ".png", bbox_inches="tight", pad_inches=0.2)
