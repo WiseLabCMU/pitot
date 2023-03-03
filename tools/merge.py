@@ -21,12 +21,14 @@ def _main(args):
 
     assert np.all(matrix["platform"] == platform["platform"])
     assert np.all(matrix["module"] == opcodes["module"])
+    assert platform["data"].shape[1] == platform["feature"].shape[0]
+    assert opcodes["data"].shape[1] == opcodes["opcode"].shape[0]
 
     np.savez(
         args.out, data=matrix["data"],
         module=matrix["module"],
         module_data=opcodes["data"],
-        module_feature=opcodes["opcode"],
+        module_features=opcodes["opcode"],
         platform=matrix["platform"],
         platform_data=platform["data"],
-        platform_feature=platform["feature"])
+        platform_features=platform["feature"])

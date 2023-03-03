@@ -4,32 +4,10 @@ import json
 import numpy as np
 from matplotlib import pyplot as plt
 
-from dataset import Index, Matrix
+from prediction import Index, Matrix
 
 
 _desc = "Generate platform features."
-
-
-def _int(x):
-    if x == 0:
-        return np.nan
-    else:
-        return x
-
-
-def _logsize(x):
-    """Log base 2 of size."""
-    if x == 0:
-        return np.nan
-    else:
-        return np.log2(int(x))
-
-
-def _loghz(x):
-    if x == 0:
-        return np.nan
-    else:
-        return np.log(int(x) / 10**6)
 
 
 def _parse(p):
@@ -44,46 +22,69 @@ def _parse(p):
     return p
 
 
+def _int(x, offset=0):
+    return [1 if x != 0 else -1, 0 if x == 0 else x - offset]
+
+
+def _logsize(x, offset=0, factor=1.0):
+    return [1 if x != 0 else -1, 0 if x == 0 else np.log2(x) - offset]
+
+
+def _loghz(x):
+    return np.log(int(x) / 10**6)
+
+
+class OneHot:
+    """One Hot (-1, 1) encoding."""
+
+    def __init__(self, values, name="var"):
+        self.values = np.array(sorted(np.unique(values)))
+        self.display = ["{}={}".format(name, x) for x in self.values]
+
+    def encode(self, x):
+        """Generate encoding."""
+        return (self.values == x).astype(np.float32) * 2 - 1
+
+
 def _main(args):
     with open(args.path) as f:
         src = json.load(f)
 
-    architectures = np.array(sorted(np.unique(
-        [v['platform']['cpu']['cpu'] for _, v in src.items()])))
-
-    def _one_hot_uarch(x):
-        return (architectures == x).astype(np.float32)
+    uarch = OneHot(
+        [v['platform']['cpu']['cpu'] for _, v in src.items()], name="uarch")
+    l2_assoc = OneHot(
+        [v['platform']['mem']['l2_assoc'] for _, v in src.items()],
+        name="l2_assoc")
 
     def _transform(m):
         return [
-            *_one_hot_uarch(m['cpu']['cpu']),     # Architecture
-            _loghz(m['cpu']['cpufreq']) - 7,      # Log CPU Frequency / 1GHz
-            _logsize(m['mem']['l1d_size']) - 16,  # Log L1D
-            _logsize(m['mem']['l1i_size']) - 16,  # Log L1I
-            _logsize(m['mem']['l2_size']) - 21,   # Log L2
-            _logsize(m['mem']['l2_line']) - 10,   # Log L2 line size
-            _int(m['mem']['l2_assoc']) - 7,       # L2 associativity
-            _logsize(m['mem']['l3_size']) - 21,   # L3 size in MiB
+            *uarch.encode(m['cpu']['cpu']),              # Architecture
+            _loghz(m['cpu']['cpufreq']) - 7,             # Log CPUFreq
+            *_logsize(m['mem']['l1d_size'], offset=16),  # Log L1D
+            *_logsize(m['mem']['l1i_size'], offset=16),  # Log L1I
+            *_logsize(m['mem']['l2_size'], offset=21),   # Log L2
+            *_logsize(m['mem']['l2_line'], offset=10),   # Log L2 line size
+            *l2_assoc.encode(m['mem']['l2_assoc']),      # L2 associativity
+            *_logsize(m['mem']['l3_size'], offset=21)  # Log L3 size
         ]
 
     devices = {v['name']: _transform(v['platform']) for v in src.values()}
     platforms = np.load(args.matrix)["platform"]
-    runtimes = np.array(sorted(list(set(
-        [p.split(".")[0] for p in platforms]))))
-
-    def _one_hot_runtime(x):
-        return (runtimes == x).astype(np.float32)
+    runtimes = OneHot([p.split(".")[0] for p in platforms], name="rt")
 
     res = []
     for row in platforms:
         runtime, device = row.split(".")
-        res.append(devices[device] + list(_one_hot_runtime(runtime)))
+        res.append(devices[device] + list(runtimes.encode(runtime)))
     res = np.array(res)
 
-    labels = ["uarch=" + x for x in architectures] + [
-        "cpufreq", "l1d_size", "l1i_size", "l2_size",
-        "l2_line", "l2_assoc", "l3_size"
-    ] + ["runtime=" + x for x in runtimes]
+    labels = [
+        *uarch.display, "cpufreq",
+        "ind:l1d_size", "l1d_size", "ind:l1i_size", "l1i_size",
+        "ind:l2_size", "l2_size", "ind:l2_line", "l2_line", *l2_assoc.display,
+        "ind:l3_size", "l3_size",
+        *runtimes.display
+    ]
 
     np.savez(args.out + ".npz", data=res, feature=labels, platform=platforms)
 

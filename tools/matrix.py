@@ -6,7 +6,7 @@ import json
 from matplotlib import pyplot as plt
 from functools import partial
 
-from dataset import apply_recursive, Index, Matrix
+from prediction import apply_recursive, Index, Matrix
 
 
 _desc = "Create execution time matrix from data traces."

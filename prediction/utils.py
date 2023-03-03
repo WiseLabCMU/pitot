@@ -6,10 +6,8 @@ import numpy as np
 from jaxtyping import Shaped
 from beartype.typing import (
     Callable, Optional, Sequence, Union, NamedTuple, Any)
-from beartype import beartype
 
 
-@beartype
 def apply_recursive(
     path: str, func: Callable[[str], Optional[Any]],
     exclude: set[str] = {"runtimes.json"}
@@ -28,7 +26,6 @@ def apply_recursive(
     return res
 
 
-@beartype
 class Index:
     """Enumerated value array indexing.
 
@@ -101,7 +98,6 @@ class Index:
 MatrixSlice = Union[slice, np.ndarray]
 
 
-@beartype
 class Matrix(NamedTuple):
     """Matrix with enumerated labels.
 

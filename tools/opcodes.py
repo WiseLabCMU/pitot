@@ -4,7 +4,7 @@ import numpy as np
 import json
 from matplotlib import pyplot as plt
 
-from dataset import apply_recursive, Index, Matrix
+from prediction import apply_recursive, Index, Matrix
 
 
 _desc = "Aggregate benchmark module opcode counts."
