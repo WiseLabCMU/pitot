@@ -16,7 +16,7 @@ from jaxtyping import PyTree, Integer, Array, Float32
 
 from .modules import (
     LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp, MultiMLP)
-from .rank1 import Rank1Solution
+from .rank1 import Rank1, Rank1Solution
 
 
 MFResult = Union[
@@ -82,7 +82,7 @@ class MatrixFactorization(hk.Module):
         M = self.M(None)
 
         if full:
-            C_bar = Rank1Solution.predict(baseline) if baseline else 0
+            C_bar = Rank1.predict(baseline)
             C_hat = C_bar + self.alpha * jnp.matmul(P, M.T)
 
             def _inner(ij):
@@ -94,8 +94,7 @@ class MatrixFactorization(hk.Module):
         else:
             def _inner(ij):
                 i, j = ij[:2]
-                C_bar = (
-                    Rank1Solution.predict(baseline, ij[:2]) if baseline else 0)
+                C_bar = Rank1.predict(baseline, ij[:2])
                 return C_bar + self.alpha * jnp.dot(P[i], M[j])
 
             return self._vvmap(_inner, ij)
@@ -130,9 +129,7 @@ class MatrixFactorizationIF(MatrixFactorization):
         V_s = self.beta * (pF[:, r:(1 + self.s) * r].reshape([-1, r, self.s]))
         V_g = self.beta * (pF[:, (1 + self.s) * r:].reshape([-1, r, self.s]))
 
-        C_bar = (
-            baseline.predict() if baseline
-            else jnp.zeros(P.shape[0], M.shape[0]))
+        C_bar = Rank1.predict(baseline)
 
         def _inner(ijk):
             i, j = ijk[:2]
@@ -140,7 +137,10 @@ class MatrixFactorizationIF(MatrixFactorization):
             for k in ijk[2:]:
                 mFm += (k != -1) * jnp.dot(
                     jnp.matmul(V_s[i].T, M[j]), jnp.matmul(V_g[i].T, M[k]))
-            return C_bar[i, j] + self.alpha * jnp.dot(P[i], M[j]) + mFm
+
+            return (
+                (C_bar[i, j] if baseline else 0.)
+                + self.alpha * jnp.dot(P[i], M[j]) + mFm)
 
         C_hat_ijk = self._vvmap(_inner, ijk)
 
@@ -162,7 +162,7 @@ class BaselineModel(hk.Module):
         if not isinstance(ij, (list, tuple)):
             ij = [ij]
         return [
-            baseline.predict(split) + self.alpha * self._call(split)
+            Rank1.predict(baseline, split) + self.alpha * self._call(split)
             for split in ij]
 
     def __call__(
@@ -173,7 +173,7 @@ class BaselineModel(hk.Module):
             x, y = jnp.meshgrid(
                 jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
             mlp = jax.vmap(self._call)(jnp.stack([x, y], axis=-1)).T
-            C_bar = baseline.predict() if baseline else 0
+            C_bar = Rank1.predict(baseline)
             C_hat = C_bar + self.alpha * mlp
             return self._lcall(ij, baseline=baseline), {"C_hat": C_hat}
         else:

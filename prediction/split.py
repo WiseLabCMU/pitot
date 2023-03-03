@@ -1,7 +1,7 @@
 """Train/Val/Test Splitting."""
 
 from jax import numpy as jnp
-from jax import random, vmap
+from jax import random
 
 from jaxtyping import UInt32, Array, Shaped
 

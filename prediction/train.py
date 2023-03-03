@@ -29,28 +29,19 @@ class TrainState(NamedTuple):
     opt_state: PyTree
 
 
-class DataSplit(NamedTuple):
-    """Data splits.
-
-    NOTE: attrs can be `Optional[int]`; in this case they act as a vmap spec.
-    """
-
-    train: Union[VmapSpec, Integer[Array, "k ntrain 2"]]
-    val: Union[VmapSpec, Integer[Array, "k nval 2"]]
-    test: Union[VmapSpec, Integer[Array, "ntest 2"]]
-
-
 class Replicate(NamedTuple):
     """Single training replicate.
 
     Attributes
     ----------
     baseline: rank 1 baseline for fitting residuals (if present).
-    splits: data splits.
+    train: train set (indices).
+    val: val set (indices).
     """
 
     baseline: Union[VmapSpec, Optional[Rank1Solution]]
-    splits: Union[VmapSpec, DataSplit]
+    train: Union[VmapSpec, Integer[Array, "k ntrain 2"]]
+    val: Union[VmapSpec, Integer[Array, "k nval 2"]]
 
 
 class CrossValidationTrainer:
@@ -111,7 +102,7 @@ class CrossValidationTrainer:
         used is technically correct, but leads to a ~50x penalty.
         """
         k1, k2 = random.split(key, 2)
-        ij = split.batch(k1, repl.splits.train, batch=self.batch)
+        ij = split.batch(k1, repl.train, batch=self.batch)
 
         # Close over all but params so they aren't included in value_and_grad.
         def _loss_func(params):
@@ -138,13 +129,9 @@ class CrossValidationTrainer:
         self, state: TrainState, repl: Replicate
     ) -> tuple[dict[str, Float32[Array, "..."]], dict]:
         """Post-epoch validation."""
-        val_test = [repl.splits.val, repl.splits.test]
-        (val, test), checkpoint = self.model.apply(
-            state.params, val_test, full=True, baseline=repl.baseline)
-        losses = {
-            "val_loss": self.dataset.loss(val, repl.splits.val),
-            "test_loss": self.dataset.loss(test, repl.splits.test)
-        }
+        val, checkpoint = self.model.apply(
+            state.params, repl.val, full=True, baseline=repl.baseline)
+        losses = {"val_loss": self.dataset.loss(val, repl.val)}
         return losses, checkpoint
 
     def train(
@@ -152,8 +139,7 @@ class CrossValidationTrainer:
         epoch_size: int = 100
     ) -> dict:
         """Run training for k-fold CV set."""
-        replicate_spec = Replicate(
-            baseline=None, splits=DataSplit(train=0, val=0, test=None))
+        replicate_spec = Replicate(baseline=None, train=0, val=0)
         vepoch_train = vmap(
             partial(self.epoch_train, epoch_size=epoch_size),
             in_axes=(0, 0, replicate_spec))
@@ -197,7 +183,7 @@ class CrossValidationTrainer:
         if isinstance(key, int):
             key = random.PRNGKey(key)
 
-        k1, k2, k3  = random.split(key, 3)
+        k1, k2, k3 = random.split(key, 3)
         train, test = vmap(partial(
             split.split, data=self.dataset.indices,
             split=int(self.dataset.data.size * (1 - p))
@@ -213,17 +199,16 @@ class CrossValidationTrainer:
 
         train, val = vmap(partial(split.crossval, k=self.k))(
             key=split.keys(k2, self.replicates), data=train)
-        splits = DataSplit(train=train, val=val, test=test)
 
-        replicates = Replicate(baseline=baseline, splits=splits)
+        replicates = Replicate(baseline=baseline, train=train, val=val)
         result = vmap(
             partial(self.train, epochs=epochs, epoch_size=epoch_size)
         )(split.keys(k3, self.replicates), replicates)
 
-        return {
-            "train": splits.train, "val": splits.val, "test": splits.test,
-            "C_bar": vmap(Rank1Solution.predict)(baseline),
-            "p_bar": baseline.x,
-            "m_bar": baseline.y,
-            **result
-        }
+        result.update({"train": train, "val": val, "test": test})
+        if baseline:
+            result.update({
+                "C_bar": vmap(Rank1.predict)(baseline),
+                "p_bar": baseline.x, "m_bar": baseline.y
+            })
+        return result

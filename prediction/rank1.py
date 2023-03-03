@@ -33,20 +33,8 @@ class Rank1Solution(NamedTuple):
     y: column features.
     """
 
-    x: Float[Array, "nx"]
-    y: Float[Array, "ny"]
-
-    def predict(
-        self, indices: Optional[
-            Union[Integer[Array, "2"], Integer[Array, "b 2"]]] = None
-    ) -> Union[Float[Array, "b"], Float[Array, "nx ny"]]:
-        """Generate prediction."""
-        if indices is None:
-            return self.x.reshape(-1, 1) + self.y.reshape(1, -1)
-        elif indices.shape == (2,):
-            return self.x[indices[0]] + self.y[indices[1]]
-        else:
-            return self.x[indices[:, 0]] + self.y[indices[:, 1]]
+    x: Union[float, Float[Array, "nx"]]
+    y: Union[float, Float[Array, "ny"]]
 
 
 class Rank1:
@@ -145,3 +133,27 @@ class Rank1:
                 delta[delta > self.tol], self.max_iter))
 
         return soln
+
+    @staticmethod
+    def predict(
+        soln: Optional[Rank1Solution],
+        indices: Optional[
+            Union[Integer[Array, "2"], Integer[Array, "b 2"]]] = None
+    ) -> Union[
+        float, Float[Array, ""], Float[Array, "b"], Float[Array, "nx ny"]
+    ]:
+        """Generate prediction.
+
+        Parameters
+        ----------
+        soln: solution to predict with. If None, return 0.
+        indices: optional indices to fetch.
+        """
+        if soln is None:
+            return 0.
+        elif indices is None:
+            return soln.x.reshape(-1, 1) + soln.y.reshape(1, -1)
+        elif indices.shape == (2,):
+            return soln.x[indices[0]] + soln.y[indices[1]]
+        else:
+            return soln.x[indices[:, 0]] + soln.y[indices[:, 1]]

@@ -18,20 +18,18 @@ class Dataset(NamedTuple):
     data: (platforms x modules) data matrix.
     mask: valid samples in the matrix.
     x_p: platform side information.
-    x_m: module side information.
+    x_m: module side information (log-opcodes).
     """
 
     data: Float32[Array, "Np Nm"]
     mask: Bool[Array, "Np Nm"]
     x_p: Float32[Array, "Np Dp"]
     x_m: Float32[Array, "Nm Dm"]
+    log: bool
 
     @classmethod
     def from_npz(
-        cls, path: str = "data.npz",
-        transform: DataTransform = lambda x: np.log(x) - 10,
-        transform_p: DataTransform = lambda x: x,
-        transform_m: DataTransform = lambda x: np.log(x + 1)
+        cls, path: str = "data.npz", log: bool = True, offset: float = 25000.
     ) -> "Dataset":
         """Load dataset from file.
 
@@ -39,20 +37,25 @@ class Dataset(NamedTuple):
         ----------
         path: file path. Should have 'data', 'platform_data',
         'module_data' keys.
-        transform: transformation to apply to data. Invalid entries should be
-        NaN or inf.
-        transform_p: transformation to apply to platforms.
-        transform_m: transformation to apply to modules.
+        log: whether to apply log to the data.
+        offset: multiplicative data offset to divide by.
         """
+        def transform(x):
+            if log:
+                return np.log(x) - np.log(offset)
+            else:
+                x = x / offset
+                x[x == 0] = np.nan
+                return x
+
         npz = np.load(path)
         with np.errstate(divide='ignore'):
             data = jnp.array(transform(npz["data"]), dtype=jnp.float32)
-            x_p = jnp.array(
-                transform_p(npz["platform_data"]), dtype=jnp.float32)
-            x_m = jnp.array(transform_m(npz["module_data"]), dtype=jnp.float32)
+            x_p = jnp.array(npz["platform_data"], dtype=jnp.float32)
+            x_m = jnp.array(np.log(npz["module_data"] + 1), dtype=jnp.float32)
         return cls(
             data=jnp.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0),
-            mask=jnp.isfinite(data), x_p=x_p, x_m=x_m)
+            mask=jnp.isfinite(data), x_p=x_p, x_m=x_m, log=log)
 
     @property
     def indices(self) -> Integer[Array, "n 2"]:
@@ -108,7 +111,10 @@ class Dataset(NamedTuple):
     ) -> Float32[Array, ""]:
         """Mean absolute percent error."""
         pred, actual = self.index(indices, pred)
-        return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
+        if self.log:
+            return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
+        else:
+            return jnp.mean(jnp.abs(pred - actual) / actual)
 
     def error(
         self, pred: Union[Float32[Array, "Np Nm"], Float32[Array, "n"]],
