@@ -99,15 +99,15 @@ class Dataset(NamedTuple):
         indices: Integer[Array, "n 2"],
     ) -> Float32[Array, ""]:
         """Mean absolute error."""
-        pred, actual = self.index(pred=pred, indices=indices)
+        pred, actual = self.index(indices, pred)
         return jnp.mean(jnp.abs(pred - actual))
 
-    def pmae(
+    def mape(
         self, pred: Union[Float32[Array, "Np Nm"], Float32[Array, "n"]],
         indices: Integer[Array, "n 2"],
     ) -> Float32[Array, ""]:
-        """Percent mean absolute error."""
-        pred, actual = self.index(pred=pred, indices=indices)
+        """Mean absolute percent error."""
+        pred, actual = self.index(indices, pred)
         return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
 
     def error(
@@ -115,5 +115,5 @@ class Dataset(NamedTuple):
         indices: Integer[Array, "n 2"],
     ) -> Float32[Array, ""]:
         """Get full prediction error."""
-        pred, actual = self.index(pred=pred, indices=indices)
+        pred, actual = self.index(indices, pred)
         return pred - actual
