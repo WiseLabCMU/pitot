@@ -5,16 +5,31 @@ from jax import numpy as jnp
 from jax import vmap
 import haiku as hk
 
+from beartype.typing import Optional
+from jaxtyping import Float32, Array, Integer
+
 
 class SideInformation(hk.Module):
     """Lookup table for matrix factorization side information."""
 
-    def __init__(self, data, name=None):
+    def __init__(
+        self, data: Float32[Array, "n d"], name: Optional[str] = None
+    ) -> None:
         super().__init__(name=name)
         self.data = data
 
-    def __call__(self, i):
-        """Index into side info with shape (index, features)."""
+    def __call__(self, i: Optional[Integer[Array, "..."]]):
+        """Index into side info with shape (index, features).
+
+        Parameters
+        ----------
+        i: index/indices.
+
+        Returns
+        -------
+        If `i` is int or array, indexes into `self.data`; if `i` is `None`,
+        returns all data.
+        """
         if i is None:
             return self.data
         else:
@@ -22,15 +37,36 @@ class SideInformation(hk.Module):
 
 
 class LearnedFeatures(hk.Module):
-    """Lookup table for learned matrix factorization."""
+    """Lookup table for learned matrix factorization.
 
-    def __init__(self, dim=8, samples=10, scale=1.0, name=None):
+    Parameters
+    ----------
+    dim: number of feature dimensions
+    samples: number of samples (number of rows to learn)
+    scale: initial values; values are initialized at `Unif(-scale, scale)`.
+    name: module name.
+    """
+
+    def __init__(
+        self, dim: int = 8, samples: int = 10, scale: float = 1.0,
+        name: Optional[str] = None
+    ) -> None:
         super().__init__(name=name)
         self.dim = (samples, dim)
         self.scale = scale
 
     def __call__(self, i):
-        """Index into weights with shape (index, features)."""
+        """Index into weights with shape (index, features).
+
+        Parameters
+        ----------
+        i: index/indices.
+
+        Returns
+        -------
+        If `i` is int or array, indexes into `self.data`; if `i` is `None`,
+        returns all data.
+        """
         init = hk.initializers.RandomUniform(
             minval=-self.scale, maxval=self.scale)
         X = hk.get_parameter("X", shape=self.dim, init=init)
@@ -41,8 +77,15 @@ class LearnedFeatures(hk.Module):
             return X[i]
 
 
-def simple_mlp(layers, activation, name=None):
-    """Create simple MLP."""
+def simple_mlp(layers: list[int], activation, name: Optional[str] = None):
+    """Create simple MLP.
+
+    Parameters
+    ----------
+    layers: layer sizes.
+    activation: activation function to apply between hidden layers.
+    name: module name.
+    """
     _layers = []
     for i, out in enumerate(layers[:-1]):
         _layers.append(hk.Linear(out, name="layer_{}".format(i)))
@@ -97,7 +140,10 @@ class MultiLinear(hk.Module):
 
 
 class MultiMLP(hk.Module):
-    """Choose one of several MLPs to apply."""
+    """Choose one of several MLPs to apply.
+
+    MLPs have different architectures but identical weights.
+    """
 
     def __init__(self, layers, activation, options, name=None):
         super().__init__(name=name)

@@ -99,5 +99,5 @@ def _main(args):
     if args.plot:
         fig, ax = plt.subplots(1, 1, figsize=(40, 40))
         with np.errstate(divide='ignore'):
-            (matrix @ np.log).plot(ax)
+            (matrix @ np.log).plot(ax, xlabel=True, ylabel=True)
         fig.savefig(args.out + ".png", bbox_inches='tight', pad_inches=0.2)

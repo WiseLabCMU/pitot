@@ -112,7 +112,7 @@ class Matrix(NamedTuple):
     rows: Index
     cols: Index
 
-    def plot(self, ax, xlabel=True, ylabel=True):
+    def plot(self, ax, xlabel: bool = False, ylabel: bool = False) -> None:
         """Draw plot."""
         ax.imshow(self.data)
         if ylabel:

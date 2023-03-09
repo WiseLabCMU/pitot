@@ -90,5 +90,7 @@ def _main(args):
 
     if args.plot:
         fig, ax = plt.subplots(figsize=(40, 40))
-        Matrix(data=res, rows=Index(platforms), cols=Index(labels)).plot(ax)
+        Matrix(
+            data=res, rows=Index(platforms), cols=Index(labels)
+        ).plot(ax, xlabel=True, ylabel=True)
         fig.savefig(args.out + ".png", bbox_inches="tight", pad_inches=0.2)

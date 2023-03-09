@@ -11,17 +11,16 @@ import jax
 from jax import numpy as jnp
 import haiku as hk
 
-from beartype.typing import Union, Optional, Callable
-from jaxtyping import PyTree, Integer, Array, Float32
+from beartype.typing import Union, Optional
+from jaxtyping import Integer, Array, Float32, PyTree
 
 from .modules import (
     LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp, MultiMLP)
 from .rank1 import Rank1, Rank1Solution
 
 
-MFResult = Union[
-    Float32[Array, "b"], tuple[Float32[Array, "b"], dict]]
-MFIndices = Union[Integer[Array, "b f"], list[Integer[Array, "b f"]]]
+MFResult = PyTree[Float32[Array, "b"]]
+MFIndices = PyTree[Integer[Array, "b f"]]
 MFBaseline = Optional[Rank1Solution]
 
 
@@ -48,18 +47,9 @@ class MatrixFactorization(hk.Module):
         self.M = M(samples=shape[1], name="M")
 
     @staticmethod
-    def _vvmap(func, ij: Union[list, tuple, PyTree]) -> list[PyTree]:
-        """Apply vmap to input arguments ij, repeated for each element of ij.
-
-        If ij is not a list or tuple, it is promoted to a list, and vmap is
-        applied to each as usual.
-        """
-        if not isinstance(ij, (list, tuple)):
-            return jax.vmap(func)(ij)
-        else:
-            return [
-                None if split is None else jax.vmap(func)(split)
-                for split in ij]
+    def _vvmap(func, x):
+        """Apply vmap to input PyTree, repeated for each leaf."""
+        return jax.tree_util.tree_map(jax.vmap(func), x)
 
     def __call__(
         self, ij: MFIndices, baseline: MFBaseline = None, full: bool = False
@@ -107,7 +97,6 @@ class MatrixFactorizationIF(MatrixFactorization):
     """
 
     def __init__(self, *args, s: int = 3, beta: float = 0.001, **kwargs):
-        raise NotImplementedError()
         super().__init__(*args, **kwargs)
         self.s = s
         self.beta = beta

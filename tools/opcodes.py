@@ -43,5 +43,5 @@ def _main(args):
 
     if args.plot:
         fig, ax = plt.subplots(figsize=(40, 40))
-        (mat @ (lambda x: np.log(x + 1))).plot(ax)
+        (mat @ (lambda x: np.log(x + 1))).plot(ax, xlabel=True, ylabel=True)
         fig.savefig(args.out + ".png", bbox_inches="tight", pad_inches=0.2)
