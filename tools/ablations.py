@@ -29,7 +29,7 @@ def _load(p):
 def _plot(
     ax, pattern: str, values: list, labels: list = None, relative=None,
     format: list[str] = ['.-', '.:', '.--', '.-.'], key="mf", legend=True,
-    baseline=True
+    baseline=None
 ) -> None:
     labels = values if labels is None else labels
     data = {v: _load(pattern.format(v)) for v in values}
@@ -42,12 +42,12 @@ def _plot(
     else:
         norm = 1.0
 
-    if baseline:
+    if baseline is not None:
         ax.errorbar(
             np.array(data[values[0]]["splits"]),
             np.array(data[values[0]][key]["baseline_mean"]) / norm,
             yerr=np.array(data[values[0]][key]["baseline_std"]) / norm,
-            label="Baseline", capsize=2, fmt=format[-1])
+            label=baseline, capsize=2, fmt=format[-1])
 
     for v, label, fmt in zip(values, labels, format):
         ax.errorbar(
