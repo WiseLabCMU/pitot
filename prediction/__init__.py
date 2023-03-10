@@ -11,10 +11,12 @@ with install_import_hook("prediction", ("beartype", "beartype")):
     from prediction.dataset import Dataset
     from prediction.rank1 import Rank1, Rank1Problem, Rank1Solution
     from prediction.objective import Objective
+    from prediction import presets
 
 
 __all__ = [
     "apply_recursive", "Index", "Matrix",
-    "models", "CrossValidationTrainer", "Dataset",
-    "Rank1", "Rank1Problem", "Rank1Solution"
+    "models", "CrossValidationTrainer", "Dataset", "Objective",
+    "Rank1", "Rank1Problem", "Rank1Solution",
+    "presets"
 ]

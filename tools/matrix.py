@@ -41,7 +41,7 @@ def _load(path, runtimes: dict = {}):
 def _parse(p):
     p.add_argument(
         "-p", "--path", nargs='+', default=["data/matrix"],
-        help="Path to dataset.")
+        help="Paths to dataset.")
     p.add_argument(
         "-o", "--out", help="Output (base) path.", default="matrix")
     p.add_argument(
@@ -60,16 +60,25 @@ def _parse(p):
 
 def _main(args):
 
-    sl_runtimes = {}
-    for p in args.path:
-        with open(os.path.join(p, "runtimes.json")) as f:
-            sl_runtimes.update(json.load(f))
-
     traces = []
     for p in args.path:
-        traces += apply_recursive(
-            p, partial(_load, runtimes=sl_runtimes),
-            exclude={"runtimes.json", "README.md"})
+        if os.path.isdir(p):
+            with open(os.path.join(p, "runtimes.json")) as f:
+                rt_manifest = json.load(f)
+            traces += apply_recursive(
+                p, partial(_load, runtimes=rt_manifest),
+                exclude={"runtimes.json", "README.md"})
+        else:
+            with open(p) as f:
+                data = json.load(f)
+            for _, entry in data.items():
+                for k, v in entry["data"].items():
+                    traces.append({
+                        "device": entry["device"],
+                        "runtime": entry["runtime"],
+                        "module": k,
+                        "mean": v
+                    })
 
     devices = Index.from_objects(traces, "device")
     runtimes = Index.from_objects(traces, "runtime")

@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 _desc = "Merge execution time matrix, module/runtime side information."
 
 
@@ -11,6 +10,8 @@ def _parse(p):
     p.add_argument("-p", "--opcodes", default="opcodes.npz")
     p.add_argument("-t", "--platforms", default="platforms.npz")
     p.add_argument("-o", "--out", default="data.npz")
+    p.add_argument(
+        "-d", "--plot", help="Draw plot.", action='store_true', default=False)
     return p
 
 

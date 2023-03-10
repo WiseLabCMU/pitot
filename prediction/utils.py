@@ -38,7 +38,6 @@ class Index:
     def __init__(
         self, items: Union[Sequence, np.ndarray],
         display: Optional[Union[Sequence, np.ndarray]] = None,
-        name: str = "index"
     ) -> None:
         self.key = np.array(items)
         self.display = np.array(
@@ -64,12 +63,18 @@ class Index:
             display = [display(i) for i in items]
         return cls(items, display=display)
 
-    def __matmul__(self, B):
+    def __matmul__(self, B: "Index") -> "Index":
         """Set product is denoted by A @ B."""
         items = [".".join([a, b]) for a in self.key for b in B.key]
         display = [
             "{}, {}".format(a, b) for a in self.display for b in B.display]
         return Index(items, display=display)
+
+    def __add__(self, B: Union[str, list[str], "Index"]) -> "Index":
+        """Add index or string."""
+        return Index(
+            list(self.key) + list(B.key),
+            display=list(self.display) + list(B.display))
 
     def __len__(self) -> int:
         """Length indicates the set size."""
@@ -112,13 +117,22 @@ class Matrix(NamedTuple):
     rows: Index
     cols: Index
 
-    def plot(self, ax, xlabel: bool = False, ylabel: bool = False) -> None:
+    def plot(
+        self, ax, xlabel: bool = False, ylabel: bool = False,
+        transpose: bool = False, **kwargs
+    ) -> None:
         """Draw plot."""
-        ax.imshow(self.data)
+        if transpose:
+            rows, cols = self.cols, self.rows
+            data = self.data.T
+        else:
+            rows, cols, data = self.rows, self.cols, self.data
+
+        ax.imshow(data, **kwargs)
         if ylabel:
-            self.rows.set_yticks(ax)
+            rows.set_yticks(ax)
         if xlabel:
-            self.cols.set_xticks(ax)
+            cols.set_xticks(ax)
 
     def __getitem__(
         self, val: Union[MatrixSlice, tuple[MatrixSlice, MatrixSlice]]
@@ -139,6 +153,12 @@ class Matrix(NamedTuple):
         """Matrix multiplication operator denotes function composition."""
         return Matrix(
             data=transform(self.data), rows=self.rows, cols=self.cols)
+
+    def __add__(self, B: "Matrix") -> "Matrix":
+        """Append matrix in axis 0."""
+        return Matrix(
+            data=np.concatenate([self.data, B.data], axis=0),
+            rows=self.rows + B.rows, cols=self.cols)
 
     def save(
         self, path: str, data: str = "data",

@@ -1,6 +1,6 @@
 """Matrix Factorization Training."""
 
-from tqdm import tqdm
+from tqdm import tqdm as tqdm_base
 from functools import partial
 
 import jax
@@ -20,6 +20,7 @@ from .history import History
 from .objective import Objective
 
 
+#: Vmap axes specifications
 VmapSpec = Optional[int]
 
 
@@ -159,7 +160,7 @@ class CrossValidationTrainer:
 
     def train(
         self, key: UInt32[Array, "2"], repl: Replicate, epochs: int = 100,
-        epoch_size: int = 100
+        epoch_size: int = 100, tqdm=tqdm_base
     ) -> dict:
         """Run training for k-fold CV set."""
         replicate_spec = Replicate(baseline=None, train=0, val=0, test=None)
@@ -184,7 +185,8 @@ class CrossValidationTrainer:
 
     def train_replicates(
         self, epoch_size: int = 100, epochs: int = 100,
-        key: Union[int, UInt32[Array, "2"]] = 42, p: float = 0.25
+        key: Union[int, UInt32[Array, "2"]] = 42, p: float = 0.25,
+        tqdm=tqdm_base
     ) -> dict:
         """Train replicates.
 
@@ -195,6 +197,7 @@ class CrossValidationTrainer:
             A checkpoint is saved (to main memory) after each epoch.
         epoch_size: Number of batches per epoch; each batch is IID.
         p: Target sparsity level (proportion of train+val set).
+        tqdm: Progress bar to use.
 
         Returns
         -------
@@ -231,8 +234,8 @@ class CrossValidationTrainer:
 
         replicates = Replicate(
             baseline=baseline, train=train, val=val, test=test)
-        result = vmap(
-            partial(self.train, epochs=epochs, epoch_size=epoch_size)
+        result = vmap(partial(
+            self.train, epochs=epochs, epoch_size=epoch_size, tqdm=tqdm)
         )(split.keys(key, self.replicates), replicates)
 
         for obj, _train, _val, _test in zip(self.objectives, train, val, test):

@@ -12,8 +12,8 @@ _desc = "Generate platform features."
 
 def _parse(p):
     p.add_argument(
-        "-p", "--path", help="Path to runtimes .json file.",
-        default="runtimes.json")
+        "-p", "--path", nargs='+', help="Path to runtimes .json file.",
+        default=["runtimes.json"])
     p.add_argument(
         "-m", "--matrix", help="Main matrix file.", default="matrix.npz")
     p.add_argument("-o", "--out", help="Output file.", default="platforms")
@@ -47,8 +47,10 @@ class OneHot:
 
 
 def _main(args):
-    with open(args.path) as f:
-        src = json.load(f)
+    src = {}
+    for p in args.path:
+        with open(p) as f:
+            src.update(json.load(f))
 
     uarch = OneHot(
         [v['platform']['cpu']['cpu'] for _, v in src.items()], name="uarch")

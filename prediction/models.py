@@ -11,7 +11,7 @@ import jax
 from jax import numpy as jnp
 import haiku as hk
 
-from beartype.typing import Union, Optional
+from beartype.typing import Optional
 from jaxtyping import Integer, Array, Float32, PyTree
 
 from .modules import (
@@ -148,14 +148,10 @@ class BaselineModel(hk.Module):
         raise NotImplementedError()
 
     def _lcall(self, ij, baseline: MFBaseline = None):
-        if not isinstance(ij, (list, tuple)):
-            ij = [ij]
-        return [
-            Rank1.predict(baseline, split) + self.alpha * self._call(split)
-            for split in ij]
+        return jax.tree_util.tree_map(self._call, ij)
 
     def __call__(
-        self, ij: MFIndices, baseline: MFBaseline = False, full: bool = False
+        self, ij: MFIndices, baseline: MFBaseline = None, full: bool = False
     ) -> MFResult:
         """Non-matrix models."""
         if full:
@@ -221,7 +217,8 @@ def embedding(
     X_p = dataset.x_p if X_p is True else X_p
     X_m = dataset.x_m if X_m is True else X_m
     _f = partial(_feature_embedding, layers=layers, dim=dim, scale=scale)
-    return MatrixFactorization(
+    return partial(
+        MatrixFactorization,
         _f(X_p), _f(X_m), alpha=alpha, shape=shape, name="embedding")
 
 
@@ -233,14 +230,16 @@ def interference(
     X_m = dataset.x_m if X_m is True else X_m
     _f = partial(_feature_embedding, dim=dim, scale=scale)
     device_out = layers[-1] * (2 * s + 1)
-    return MatrixFactorizationIF(
+    return partial(
+        MatrixFactorizationIF,
         _f(X_p, layers=layers[:-1] + [device_out]), _f(X_m, layers=layers),
         s=s, alpha=alpha, shape=shape, name="embedding")
 
 
 def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
     """Linear matrix factorization: C_ij = <u_m^{(i)}, u_d^{(j)}>."""
-    return MatrixFactorization(
+    return partial(
+        MatrixFactorization,
         partial(LearnedFeatures, dim=dim, scale=scale),
         partial(LearnedFeatures, dim=dim, scale=scale),
         alpha=alpha, shape=shape, name="linear")
@@ -250,10 +249,14 @@ def naive_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """MLP-only model without matrix embedding."""
     P = SideInformation(dataset.x_p, name="x_p")
     M = SideInformation(dataset.x_m, name="X_m")
-    return NaiveMLP(P, M, layers=layers, shape=shape, name="naive_mlp")
+    return partial(
+        NaiveMLP,
+        P, M, layers=layers, shape=shape, name="naive_mlp")
 
 
 def device_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """Per-device MLP model."""
     M = SideInformation(dataset.x_m, name="x_m")
-    return DeviceModel(M, layers=layers, shape=shape, name="device_mlp")
+    return partial(
+        DeviceModel,
+        M, layers=layers, shape=shape, name="device_mlp")

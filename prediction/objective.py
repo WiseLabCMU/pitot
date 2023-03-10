@@ -5,6 +5,17 @@ from jax import numpy as jnp
 from beartype.typing import NamedTuple, Optional, Union
 from jaxtyping import Float32, Array, Integer
 
+from .dataset import Dataset
+
+
+#: Matrix Factorization Predictions. Can be a matrix, array, k-fold replicates
+#: of matrix, or k-fold replicates of array.
+MFPrediction = Union[
+    Float32[Array, "n"],
+    Float32[Array, "nx ny"],
+    Float32[Array, "k nx ny"]
+]
+
 
 class Objective(NamedTuple):
     """Training objective.
@@ -28,6 +39,17 @@ class Objective(NamedTuple):
     name: str
     save: str
 
+    @classmethod
+    def from_config(cls, dataset: Dataset, config: dict) -> "Objective":
+        """Create objective from configuration.
+
+        "xkey" and "ykey" attributes denote where to fetch `x` and `y` from.
+        """
+        x = getattr(dataset, config["xkey"])
+        y = getattr(dataset, config["ykey"])
+        kwargs = {k: v for k, v in config.items() if k not in {"xkey", "ykey"}}
+        return cls(x=x, y=y, **kwargs)
+
     @property
     def size(self) -> int:
         """Dataset size."""
@@ -40,28 +62,53 @@ class Objective(NamedTuple):
         return jnp.arange(
             self.y.shape[0], dtype=jnp.uint16 if u16 else jnp.uint32)
 
-    def loss(self, pred: Float32[Array, "n"], idx: Integer[Array, "n"]):
+    def index(
+        self, pred: MFPrediction, idx: Integer[Array, "n"]
+    ) -> tuple[Float32[Array, "n"], Float32[Array, "n"]]:
+        """Index into dataset y values (and predictions).
+
+        NOTE: There's an edge case here if `len(idx) == matrix.shape[1]`.
+        """
+        x = self.x[idx]
+        y = self.y[idx]
+
+        # Index form
+        if pred.shape[-1] == idx.shape[0]:
+            if len(pred.shape) == 2:
+                pred = jnp.mean(pred, axis=0)
+            return pred, y
+        # Matrix form
+        else:
+            if len(pred.shape) == 3:
+                pred = jnp.mean(pred, axis=0)
+            return pred[x[:, 0], x[:, 1]], y
+
+    def loss(self, pred: Float32[Array, "..."], idx: Integer[Array, "n"]):
         """Compute (weighted) loss from data indices."""
         if self.weight is None:
             return 0.0
         else:
             return jnp.mean(jnp.square(pred - self.y[idx])) * self.weight
 
-    def rmse(self, pred: Float32[Array, "n"], idx: Integer[Array, "n"]):
-        """RMSE log error; alias for sqrt(loss)."""
-        return jnp.sqrt(self.loss(pred=pred, idx=idx))
+    def rmse(self, pred: MFPrediction, idx: Integer[Array, "n"]):
+        """RMSE log error."""
+        pred, actual = self.index(pred, idx)
+        return jnp.sqrt(jnp.mean(jnp.square(pred - actual)))
 
-    def mae(self, pred: Float32[Array, "n"], idx: Integer[Array, "n"]):
+    def mae(self, pred: MFPrediction, idx: Integer[Array, "n"]):
         """Mean absolute error."""
-        return jnp.mean(jnp.abs(pred - self.y[idx]))
+        pred, actual = self.index(pred, idx)
+        return jnp.mean(jnp.abs(pred - actual))
 
-    def mape(self, pred: Float32[Array, "n"], idx: Integer[Array, "n"]):
+    def mape(self, pred: MFPrediction, idx: Integer[Array, "n"]):
         """Mean absolute percent error."""
+        pred, actual = self.index(pred, idx)
         if self.log:
-            return jnp.mean(jnp.abs(jnp.exp(pred - self.y[idx]) - 1))
+            return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
         else:
-            return jnp.mean(jnp.abs(pred - self.y[idx]) / self.y[idx])
+            return jnp.mean(jnp.abs(pred - actual) / actual)
 
-    def error(self, pred: Float32[Array, "n"], idx: Integer[Array, "n"]):
+    def error(self, pred: MFPrediction, idx: Integer[Array, "n"]):
         """Get full prediction error."""
-        return pred - self.x[idx]
+        pred, actual = self.index(pred, idx)
+        return pred - actual
