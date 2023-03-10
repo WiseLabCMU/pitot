@@ -20,7 +20,7 @@ def _parse(p):
         "-o", "--out", default="results",
         help="Directory to place results in.")
     p.add_argument(
-        "-d", "--dataset", default="data.npz", help="Dataset to use.")
+        "-d", "--dataset", default="data/data.npz", help="Dataset to use.")
     p.add_argument(
         "-s", "--sparsity", nargs="+", type=float,
         default=[0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],

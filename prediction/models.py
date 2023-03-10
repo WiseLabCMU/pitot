@@ -148,7 +148,10 @@ class BaselineModel(hk.Module):
         raise NotImplementedError()
 
     def _lcall(self, ij, baseline: MFBaseline = None):
-        return jax.tree_util.tree_map(self._call, ij)
+        def _inner(ij):
+            return self._call(ij) + Rank1.predict(baseline, ij)
+
+        return jax.tree_util.tree_map(_inner, ij)
 
     def __call__(
         self, ij: MFIndices, baseline: MFBaseline = None, full: bool = False
@@ -156,8 +159,9 @@ class BaselineModel(hk.Module):
         """Non-matrix models."""
         if full:
             x, y = jnp.meshgrid(
-                jnp.arange(self.shape[0]), jnp.arange(self.shape[1]))
-            mlp = jax.vmap(self._call)(jnp.stack([x, y], axis=-1)).T
+                jnp.arange(self.shape[0]), jnp.arange(self.shape[1]),
+                indexing='ij')
+            mlp = jax.vmap(self._call)(jnp.stack([x, y], axis=-1))
             C_bar = Rank1.predict(baseline)
             C_hat = C_bar + self.alpha * mlp
             return self._lcall(ij, baseline=baseline), {"C_hat": C_hat}
@@ -174,8 +178,8 @@ class NaiveMLP(BaselineModel):
         super().__init__(name=name)
         self.mlp = simple_mlp(
             list(layers) + [1], activation=jax.nn.tanh, name="mlp")
-        self.P = P
-        self.M = M
+        self.P = P()
+        self.M = M()
         self.alpha = alpha
         self.shape = shape
 
@@ -191,7 +195,7 @@ class DeviceModel(BaselineModel):
             self, M, alpha=0.1, layers=[64, 64], shape=(10, 10),
             name="DeviceModel"):
         super().__init__(name=name)
-        self.M = M
+        self.M = M()
         self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[1])
         self.alpha = alpha
         self.shape = shape
@@ -247,16 +251,16 @@ def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
 
 def naive_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """MLP-only model without matrix embedding."""
-    P = SideInformation(dataset.x_p, name="x_p")
-    M = SideInformation(dataset.x_m, name="X_m")
+    P = partial(SideInformation, dataset.x_p, name="x_p")
+    M = partial(SideInformation, dataset.x_m, name="X_m")
     return partial(
         NaiveMLP,
-        P, M, layers=layers, shape=shape, name="naive_mlp")
+        P, M, layers=layers, alpha=alpha, shape=shape, name="naive_mlp")
 
 
 def device_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     """Per-device MLP model."""
-    M = SideInformation(dataset.x_m, name="x_m")
+    M = partial(SideInformation, dataset.x_m, name="X_m")
     return partial(
         DeviceModel,
-        M, layers=layers, shape=shape, name="device_mlp")
+        M, layers=layers, alpha=alpha, shape=shape, name="device_mlp")

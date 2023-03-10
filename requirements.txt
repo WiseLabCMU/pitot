@@ -3,7 +3,7 @@ dm-haiku
 optax
 tqdm
 matplotlib
-docstring_parser
+beartype
 pandas
 numpy
 scikit-learn

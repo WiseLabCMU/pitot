@@ -90,25 +90,27 @@ class Objective(NamedTuple):
         else:
             return jnp.mean(jnp.square(pred - self.y[idx])) * self.weight
 
-    def rmse(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """RMSE log error."""
-        pred, actual = self.index(pred, idx)
-        return jnp.sqrt(jnp.mean(jnp.square(pred - actual)))
-
-    def mae(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Mean absolute error."""
-        pred, actual = self.index(pred, idx)
-        return jnp.mean(jnp.abs(pred - actual))
-
-    def mape(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Mean absolute percent error."""
-        pred, actual = self.index(pred, idx)
-        if self.log:
-            return jnp.mean(jnp.abs(jnp.exp(pred - actual) - 1))
-        else:
-            return jnp.mean(jnp.abs(pred - actual) / actual)
-
     def error(self, pred: MFPrediction, idx: Integer[Array, "n"]):
         """Get full prediction error."""
         pred, actual = self.index(pred, idx)
         return pred - actual
+
+    def perror(self, pred: MFPrediction, idx: Integer[Array, "n"]):
+        """Percent error."""
+        if self.log:
+            return jnp.exp(self.error(pred, idx)) - 1
+        else:
+            pred, actual = self.index(pred, idx)
+            return (pred - actual) / actual
+
+    def rmse(self, pred: MFPrediction, idx: Integer[Array, "n"]):
+        """RMSE log error."""
+        return jnp.sqrt(jnp.mean(jnp.square(self.error(pred, idx))))
+
+    def mae(self, pred: MFPrediction, idx: Integer[Array, "n"]):
+        """Mean absolute error."""
+        return jnp.mean(jnp.abs(self.error(pred, idx)))
+
+    def mape(self, pred: MFPrediction, idx: Integer[Array, "n"]):
+        """Mean absolute percent error."""
+        return jnp.mean(jnp.abs(self.perror(pred, idx)))

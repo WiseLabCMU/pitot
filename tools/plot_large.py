@@ -10,7 +10,8 @@ _desc = "Generate large matrix and side information plot."
 
 def _parse(p):
     p.add_argument("-p", "--path", default="data.npz", help="Data file.")
-    p.add_argument("-o", "--out", default="dataset.png", help="Output file.")
+    p.add_argument(
+        "-o", "--out", default="figures/dataset.png", help="Output file.")
 
 
 def _main(args):

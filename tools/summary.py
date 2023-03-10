@@ -26,22 +26,45 @@ def _load(path):
     objectives = [Objective.from_config(dataset, c) for c in _obj]
     result = np.load(path)
 
-    return {
-        cfg["name"]: jax.vmap(obj.mape)(
-            result[cfg["save"] if cfg["save"] else "C_hat"],
-            result[cfg["name"] + "_test"]).tolist()
-        for obj, cfg in zip(objectives, _obj)
-    }
+    summary = {}
+    for obj, cfg in zip(objectives, _obj):
+        y_pred = result[cfg["save"] if cfg["save"] else "C_hat"]
+        indices = result[cfg["name"] + "_test"]
+        error = jax.vmap(obj.perror)(y_pred, indices).reshape(-1)
+        mape = jax.vmap(obj.mape)(y_pred, indices)
+        summary[cfg["name"]] = {
+            "mean": np.mean(mape),
+            "std": np.sqrt(np.var(mape)),
+            "std_all": np.sqrt(np.var(error)),
+            "replicates": mape.tolist()
+        }
+        if "C_bar" in result:
+            baseline = jax.vmap(obj.mape)(result["C_bar"], indices)
+            summary[cfg["name"]].update({
+                "baseline": baseline.tolist(),
+                "baseline_mean": np.mean(baseline),
+                "baseline_std": np.sqrt(np.var(baseline))
+            })
+    return summary
 
 
 def _recurse(path):
     contents = os.listdir(path)
     if any(c.endswith(".npz") for c in contents):
-        results = [x for x in os.listdir(path) if x.endswith(".npz")]
+        splits = sorted([
+            float(c.replace(".npz", ""))
+            for c in contents if c.endswith('.npz')])
+
+        results = [
+            _load(os.path.join(path, "{}.npz".format(x)))
+            for x in tqdm(splits, desc=path)]
         results = {
-            float(x.replace(".npz", "")): _load(os.path.join(path, x))
-            for x in tqdm(results, desc=path)
+            obj: {
+                k: np.stack([x[obj][k] for x in results]).tolist()
+                for k in subdict
+            } for obj, subdict in results[0].items()
         }
+        results["splits"] = splits
 
         with open(os.path.join(path, "summary.json"), 'w') as f:
             json.dump(results, f, indent=4)

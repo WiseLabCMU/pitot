@@ -7,6 +7,10 @@ from . import merge
 from . import plot_large
 from . import experiments
 from . import summary
+from . import ablations
+from . import figures
+from . import tsne
+
 
 commands = {
     "matrix": matrix,
@@ -15,5 +19,8 @@ commands = {
     "platforms": platforms,
     "plot_large": plot_large,
     "experiments": experiments,
-    "summary": summary
+    "summary": summary,
+    "ablations": ablations,
+    "figures": figures,
+    "tsne": tsne
 }

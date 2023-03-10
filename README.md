@@ -6,39 +6,12 @@ Please note that our code base is optimized for cross-validation and replicate b
 
 ## Experiments
 
-Ablations: sparsity = [0.2, 0.4, 0.6, 0.8]
-- Linear (r = 1, 2, 4, 8, 16, 32, 64, 128)
-    ```
-    python3 experiments.py Lr1 Lr2 Lr4 Lr8 Lr16 Lr32 Lr64 Lr128
-    ```
-- Embedding (r = 8, 16, 32, 64, 128)
-    ```
-    python3 experiments.py Er8 Er16 Er32 Er64 Er128 -s 0.2 0.4 0.6 0.8
-    ```
-- Embedding (q = 2, 4, 8, 16, 32)
-    ```
-    python3 experiments.py Eq2 Eq4 Eq8 Eq16 Eq32 -s 0.2 0.4 0.6 0.8
-    ```
-- Interference (s = 1, 2, 3, 4)
-    ```
-    python3 experiments.py Is1 Is2 Is3 Is4 -s 0.2 0.4 0.6 0.8
-    ```
-
-Full: [0.1, 0.2, ... 0.9]
-- Embedding (r=64, q=4)
-- Interference (r=64, q=4, s=3)
-- Embedding, + interference data
-- Device Only
-- Module Only
-
-Other Datasets
+Experiments:
 ```
-python3 experiments.py -i if3.npz if3
-python3 experiments.py -i if.mc.npz if.mc
-python3 experiments.py -i if3.mc.npz if3.mc
-python3 experiments.py -i if3.npz e.if3
-python3 experiments.py -i if.mc.npz e.if.mc
-python3 experiments.py -i if3.mc.npz e.if3.mc
-python3 experiments.py -i if3.mc.npz ig.if3.mc
-python3 experiments.py -i if3.npz ig.if3
+python manage.py experiments embedding/*
+python manage.py experiments features/*
+python manage.py experiments linear/*
+python manage.py experiments paragon/*
+python manage.py experiments interference/* -d data/data.if.npz
+python manage.py experiments interference3/* -d data/data.if3.npz
 ```

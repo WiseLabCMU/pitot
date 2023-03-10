@@ -5,7 +5,7 @@ from tools import commands
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description="Data Management Scripts.")
+    parser = ArgumentParser(description="Script Dispatcher.")
 
     subparsers = parser.add_subparsers()
     for name, command in commands.items():
