@@ -79,7 +79,7 @@ def _plot_p_runtime(ax, dataset, P):
     runtime_index = np.array([
         runtimes[x.split('.')[0]] for x in dataset["platform"]])
 
-    markers = ['.', 'x', '+', 's', '1', '2', '3', 'd']
+    markers = ['.', 'x', '+', 'p', '1', '2', '3', 'd']
     for (k, v), m in zip(runtimes.items(), markers):
         ax.scatter(
             *P[runtime_index == v].T, c='C{}'.format(v),

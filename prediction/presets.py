@@ -86,12 +86,19 @@ PRESETS = {
     "interference3/discard": _if_objective(0.0),
     "interference3/ignore": _if_objective(1.0),
     "interference3/2": _if_model(2),
+    "interference3/no-smt": _if_model(2),
     # Other baselines
     "baseline/platform_only": {("model_args", "X_m"): None},
     "baseline/module_only": {("model_args", "X_p"): None},
     "baseline/mlp": {
         ("model",): "naive_mlp",
         ("model_args",): {"layers": (128, 128), "alpha": 0.1}
+    },
+    "baseline/device_mlp": {
+        ("model",): "device_mlp",
+        ("model_args",): {"layers": (64, 64), "alpha": 0.1},
+        ("training_args", "k"): 5,
+        ("training_args", "replicates"): 5
     },
 }
 

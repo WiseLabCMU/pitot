@@ -13,7 +13,10 @@ _desc = "Miscellaneous paper figures."
 
 
 def _parse(p):
-    p.add_argument("figures", nargs='+', default=[], help="Figures to draw.")
+    p.add_argument(
+        "-f", "--figures", nargs='+',
+        default=["matrix", "spectral_norm", "interference_hist"],
+        help="Figures to draw.")
     p.add_argument("-o", "--out", help="Output directory.", default="figures")
     p.add_argument(
         "-p", "--path", help="Results directory.", default="results")
@@ -31,7 +34,7 @@ class Figures:
     @staticmethod
     def matrix(args):
         """Matrix dataset 'thumbnail' picture."""
-        fig, axs = plt.subplots(1, 1, figsize=(5, 5))
+        fig, axs = plt.subplots(1, 1, figsize=(4, 4))
         with np.errstate(divide='ignore'):
             data = np.log(np.load(args.data)["data"])
         axs.imshow(data)
@@ -62,14 +65,29 @@ class Figures:
         vvv = vmap(vmap(vmap(_spectral_norm)))
         pred = np.mean(vvv(data["V_s"], data["V_g"]), axis=(0, 1))
 
-        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+        fig, ax = plt.subplots(1, 1, figsize=(4.5, 3))
         ax.grid()
-        ax.scatter(measured, pred)
+        ax.scatter(measured, pred, marker='.')
         ax.set_ylabel(r"Learned: $\mathbb{E}[||\mathbf{F}_j||_2]$")
         ax.set_xlabel("Measured: Mean Percent Interference")
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
         fig.tight_layout()
         return {"spectral_norm": fig}
+
+    @staticmethod
+    def interference_hist(args):
+        """Interference histogram."""
+        ds = np.load(args.if_data)
+
+        baseline = ds["data"][ds["if_platform"], ds["if_module"]]
+        interference = ds["if_data"] / baseline - 1
+        fig, ax = plt.subplots(1, 1, figsize=(4.5, 3))
+        ax.hist(interference, bins=np.linspace(0, 1.50, 16), density=True)
+        ax.set_xlabel("Interference Slowdown")
+        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+        ax.grid()
+        fig.tight_layout()
+        return {"interference_hist": fig}
 
 
 def _main(args):

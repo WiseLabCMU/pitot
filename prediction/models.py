@@ -149,7 +149,7 @@ class BaselineModel(hk.Module):
 
     def _lcall(self, ij, baseline: MFBaseline = None):
         def _inner(ij):
-            return self._call(ij) + Rank1.predict(baseline, ij)
+            return Rank1.predict(baseline, ij) + self.alpha * self._call(ij)
 
         return jax.tree_util.tree_map(_inner, ij)
 
@@ -196,7 +196,7 @@ class DeviceModel(BaselineModel):
             name="DeviceModel"):
         super().__init__(name=name)
         self.M = M()
-        self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[1])
+        self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[0])
         self.alpha = alpha
         self.shape = shape
 

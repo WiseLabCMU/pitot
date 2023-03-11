@@ -7,7 +7,7 @@ from . import merge
 from . import plot_large
 from . import experiments
 from . import summary
-from . import ablations
+from . import compare
 from . import figures
 from . import tsne
 
@@ -20,7 +20,7 @@ commands = {
     "plot_large": plot_large,
     "experiments": experiments,
     "summary": summary,
-    "ablations": ablations,
+    "compare": compare,
     "figures": figures,
     "tsne": tsne
 }
