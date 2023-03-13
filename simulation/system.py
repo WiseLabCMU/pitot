@@ -29,7 +29,22 @@ class Jobs(NamedTuple):
 
 
 class NetworkSimulation:
-    """Simulated Network."""
+    """Simulated Network.
+
+    Parameters
+    ----------
+    key: random seed for network generation.
+    dataset: path to source dataset.
+    latency_trace: path to latency data.
+    n0: number of devices in layer 0 (cloud).
+    n1: number of devices in layer 1 (5G edge).
+    alpha: concentration parameter for tower devices.
+    p_job: probability of jobs being in anywhere, in the same cluster,
+        or on the same device.
+    job_scale: capacity requirements of each job as a multiplier of the
+        execution time.
+    capacity: capacity of layer 0, layer 1, and layer 2 devices.
+    """
 
     def __init__(
         self, key: Union[int, UInt32[Array, "2"]] = 42,
@@ -37,8 +52,8 @@ class NetworkSimulation:
         latency_trace: str = "data/dataset_speedtest_ookla.csv",
         n0: int = 10, n1: int = 50, alpha: float = 1.0,
         p_job: tuple[float, float, float] = (0.33, 0.33, 0.34),
-        job_scale: float = 0.05,
-        capacity: tuple[float, float, float] = (16.0, 4.0, 1.0),
+        job_scale: float = 0.02,
+        capacity: tuple[float, float, float] = (100.0, 4.0, 1.0),
     ) -> None:
 
         if isinstance(key, int):
@@ -141,4 +156,4 @@ class NetworkSimulation:
             if remaining > 0:
                 capacity[options[choice]] = remaining
                 assn[i] = options[choice]
-        return assn, capacity
+        return assn

@@ -1,6 +1,7 @@
 """Network simulation."""
 
 import pandas as pd
+import numpy as np
 from jax import numpy as jnp
 from jax import random, vmap
 
@@ -101,3 +102,10 @@ class NetworkTopology(NamedTuple):
     def adjacency(self) -> Bool[Array, "n n"]:
         """Tower "adjacency" matrix."""
         return (self.tid.reshape(-1, 1) == self.tid.reshape(1, -1))
+
+    def get_order(self):
+        """Get order for displaying by cluster."""
+        order = []
+        for c in range(np.max(self.tid) + 1):
+            order += np.where(self.tid == c)[0].tolist()
+        return np.array(order)

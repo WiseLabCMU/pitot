@@ -7,6 +7,9 @@ import os
 
 from jax import numpy as jnp
 from jax import vmap
+from jax import random
+
+from prediction import Dataset, Rank1
 
 
 _desc = "Miscellaneous paper figures."
@@ -15,7 +18,7 @@ _desc = "Miscellaneous paper figures."
 def _parse(p):
     p.add_argument(
         "-f", "--figures", nargs='+',
-        default=["matrix", "spectral_norm", "interference_hist"],
+        default=["svd", "matrix", "spectral_norm", "interference_hist"],
         help="Figures to draw.")
     p.add_argument("-o", "--out", help="Output directory.", default="figures")
     p.add_argument(
@@ -30,6 +33,28 @@ def _parse(p):
 
 class Figures:
     """Paper figures."""
+
+    @staticmethod
+    def svd(args):
+        """Matrix spectrum."""
+        ds = Dataset.from_npz(args.data)
+        rank1 = Rank1(ds.data, max_iter=1000).fit(ds.to_mask(ds.x))
+        X = (ds.data - Rank1.predict(rank1)) * ds.to_mask(ds.x)
+        _, S, _ = np.linalg.svd(X)
+
+        X_iid = random.normal(
+            random.PRNGKey(42), shape=X.shape
+        ) * np.sqrt(np.var(X)) + np.mean(X)
+        _, S_iid, _ = np.linalg.svd(X_iid)
+
+        fig, ax = plt.subplots(1, 1, figsize=(4.5, 3))
+        ax.plot(np.arange(25), S[:25], label="Residual Spectrum")
+        ax.plot(np.arange(25), S_iid[:25], label="Random Matrix")
+        ax.set_xlabel("First 25 Singular Values")
+        ax.grid()
+        ax.legend()
+        fig.tight_layout()
+        return {"svd": fig}
 
     @staticmethod
     def matrix(args):

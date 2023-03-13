@@ -131,8 +131,12 @@ class Matrix(NamedTuple):
         ax.imshow(data, **kwargs)
         if ylabel:
             rows.set_yticks(ax)
+        else:
+            ax.set_yticks([])
         if xlabel:
             cols.set_xticks(ax)
+        else:
+            ax.set_xticks([])
 
     def __getitem__(
         self, val: Union[MatrixSlice, tuple[MatrixSlice, MatrixSlice]]

@@ -24,11 +24,14 @@ pip install -r requirements.txt
 
 ## Experiments
 
+All of our experiments and figures are fully deterministic, and use the default random seed (42) provided.
+
 To run our experiments used in the paper:
 ```sh
 python manage.py experiments embedding/* features/* linear/128 baseline/*
 python manage.py experiments interference/* -d data/data.if.npz
-python manage.py experiments interference3/* -d data/data.if3.npz
+python manage.py experiments interference3/discard interference3/ignore interference3/2 -d data/data.if3.npz
+python manage.py experiments interference3/no-smt -d data/data.if3.mc.npz
 ```
 
 To draw the figures:
@@ -36,4 +39,5 @@ To draw the figures:
 python manage.py compare
 python manage.py figures
 python manage.py tsne
+python manage.py plot_simulation
 ```

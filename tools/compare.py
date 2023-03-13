@@ -13,7 +13,9 @@ _desc = "Draw comparison figures used in the paper."
 def _parse(p):
     p.add_argument(
         "-f", "--figures", nargs='+',
-        default=["comparison", "ablations_mf", "ablations_if", "interference"],
+        default=[
+            "comparison", "percentile", "ablations_mf",
+            "ablations_if", "interference"],
         help="Figures to draw.")
     p.add_argument("-o", "--out", help="Output directory.", default="figures")
     p.add_argument(
@@ -146,20 +148,23 @@ class Figures:
         ax.set_ylabel("Relative Error")
         _fmt_axes(figc, ax)
 
-        """
-        figd, ax = plt.subplots(1, 1, figsize=(3, 4))
+        return {
+            "comparisons_a": figa, "comparisons_b": figb,
+            "comparisons_c": figc}
+
+    @staticmethod
+    def percentile(args):
+        """Comparison of calibration magnitude."""
+        fig, ax = plt.subplots(1, 1, figsize=(3, 3))
         _plot_percentile(
             ax, ["embedding/128", "linear/128", "baseline/mlp"], p=5,
             labels=[
                 "Pitot", "Linear Factorization",
                 "Single Network"])
-        ax.set_ylabel("1% Overprovisioning")
-        _fmt_axes(figd, ax)
-        """
-
-        return {
-            "comparisons_a": figa, "comparisons_b": figb,
-            "comparisons_c": figc}
+        ax.set_ylabel("5% Calibration Margin")
+        _fmt_axes(fig, ax)
+        fig.tight_layout(pad=0.5)
+        return {"percentile": fig}
 
     @staticmethod
     def ablations_mf(args):
