@@ -18,7 +18,9 @@ Our experiments were run on Python 3.10, though any Python version supporting ty
 pip install -r requirements.txt
 ```
 
-**Anonymous OSF Repository**: download and extract the `pitot.zip` repository folder. Then, download `data.zip`, and extract into the repository code folder `pitot/`. If you wish to use our experiment metadata instead of rerunning from scratch, also download and extract `results.zip` into `pitot/`.
+**Anonymous OSF Repository**: download and extract the `pitot.zip` repository folder. Then, download `data.zip`, and extract into the repository code folder `pitot/`. If you wish to use our experiment metadata instead of rerunning from scratch, also download and extract `results.zip` and `results-simulation.zip` into `pitot/`.
+
+Our benchmarks are also included in `benchmarks.zip`. Our benchmarking, cluster management, and edge orchestration system cannot be easily anonymized and submitted via file upload, but will be referenced here at publication.
 
 **NOTE**: `embedding/128/0.9.npz`, the only checkpoint required to draw our figures, is the only checkpoint included in `results.zip` due to the size of checkpoint files.
 
