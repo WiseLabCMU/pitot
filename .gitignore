@@ -3,6 +3,7 @@ results*/
 data-*/
 interference/
 archive/
+data/dataset_speedtest_ookla.csv
 *.tar
 
 # Byte-compiled / optimized / DLL files

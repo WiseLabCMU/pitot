@@ -88,6 +88,8 @@ PRESETS = {
     "interference3/2": _if_model(2),
     "interference3/no-smt": _if_model(2),
     # Other baselines
+    "baseline/non_baseline": {
+        ("training_args", "do_baseline"): False, ("model_args", "alpha"): 1.0},
     "baseline/platform_only": {("model_args", "X_m"): None},
     "baseline/module_only": {("model_args", "X_p"): None},
     "baseline/mlp": {

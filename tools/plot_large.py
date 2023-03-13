@@ -2,7 +2,7 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-from prediction import Matrix
+from prediction import Matrix, Index
 
 
 _desc = "Generate large matrix and side information plot."
@@ -11,7 +11,7 @@ _desc = "Generate large matrix and side information plot."
 def _parse(p):
     p.add_argument("-p", "--path", default="data/data.npz", help="Data file.")
     p.add_argument(
-        "-o", "--out", default="figures/dataset.png", help="Output file.")
+        "-o", "--out", default="data/dataset.png", help="Output file.")
 
 
 def _main(args):
@@ -25,8 +25,11 @@ def _main(args):
     platforms = Matrix.from_npz(
         args.path, data="platform_data", rows="platform",
         cols="platform_features")
-    modules = Matrix.from_npz(
+    _modules = Matrix.from_npz(
         args.path, data="module_data", rows="module", cols="module_features")
+    _opcodes_hex = Index(_modules.cols.key, display=[
+        "x{:02X}".format(x) for x in _modules.cols.key])
+    modules = Matrix(_modules.data, _modules.rows, _opcodes_hex)
 
     with np.errstate(divide='ignore'):
         matrix = matrix @ np.log

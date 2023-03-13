@@ -36,11 +36,15 @@ def _sharey(axs):
             tick.label2.set_visible(False)
 
 
-def _fmt_axes(fig, axs):
+def _fmt_axes(fig, axs, yp=True):
+    if not isinstance(axs, np.ndarray):
+        axs = [axs]
     for ax in axs:
         ax.set_xlabel("Training Split")
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    fig.tight_layout()
+        if yp:
+            ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    fig.tight_layout(pad=0.5)
 
 
 def _plot(
@@ -66,14 +70,41 @@ def _plot(
             np.array(data[v]["splits"]),
             np.array(data[v][key]["mean"]) / norm,
             yerr=np.array(data[v][key]["std"]) / norm * 2 / 5, label=label,
-            capsize=2, fmt=fmt)
+            capsize=3, fmt=fmt)
 
     if baseline is not None:
         ax.errorbar(
             np.array(data[values[-1]]["splits"]),
             np.array(data[values[-1]][key]["baseline_mean"]) / norm,
             yerr=np.array(data[values[-1]][key]["baseline_std"]) / norm,
-            label=baseline, capsize=2, fmt=format[-1])
+            label=baseline, capsize=3, fmt=format[-1])
+
+    if legend:
+        ax.legend()
+    ax.grid()
+
+
+def _plot_percentile(
+    ax, values: list, labels: list = None, pattern="results/{}",
+    format: list[str] = ['.-', '.:', '.--', '.-.'], key="mf", legend=True,
+    baseline=None, p=5
+) -> None:
+    labels = values if labels is None else labels
+    data = {
+        v: _load(os.path.join(pattern.format(v), "summary.json"))
+        for v in values}
+
+    for v, label, fmt in zip(values, labels, format):
+        ax.plot(
+            np.array(data[v]["splits"]),
+            -np.array(data[v][key]["percentile"])[:, p],
+            fmt, label=label)
+
+    if baseline is not None:
+        ax.plot(
+            np.array(data[values[-1]]["splits"]),
+            -np.array(data[values[-1]][key]["baseline_percentile"])[:, p],
+            format[-1], label=baseline)
 
     if legend:
         ax.legend()
@@ -86,36 +117,54 @@ class Figures:
     @staticmethod
     def comparison(args):
         """Baseline comparisons."""
-        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+        figa, ax = plt.subplots(1, 1, figsize=(4, 3))
         _plot(
-            axs[0], ["embedding/128", "linear/128", "baseline/mlp"],
+            ax, ["embedding/128", "linear/128", "baseline/mlp"],
             labels=[
-                "Pitot", "Linear Matrix Factorization",
-                "Single Neural Network"])
+                "Pitot", "Linear Factorization",
+                "Single Network"])
+        ax.set_ylabel("Mean Absolute Error")
+        _fmt_axes(figa, ax)
+
+        figb, ax = plt.subplots(1, 1, figsize=(4, 3))
         _plot(
-            axs[1], ["embedding/128", "paragon/512", "baseline/device_mlp"],
-            labels=["Pitot", "Paragon", "Per-Device MLP"],
+            ax, ["embedding/128", "baseline/device_mlp"],
+            labels=["Pitot", "Per-Device"],
             baseline="Rank 1 Baseline")
+        ax.set_ylabel("Mean Absolute Error")
+        _fmt_axes(figb, ax)
+
+        figc, ax = plt.subplots(1, 1, figsize=(4, 3))
         _plot(
-            axs[2], [
+            ax, [
                 "embedding/128", "baseline/module_only",
                 "baseline/platform_only", "linear/128"],
             labels=[
                 "All Features (Pitot)", "Module Features Only",
                 "Platform Features Only", "No Features (Linear)"],
             relative="embedding/128")
+        ax.set_ylabel("Relative Error")
+        _fmt_axes(figc, ax)
 
-        axs[0].set_ylabel("Mean Absolute Error")
-        axs[1].set_ylabel("Mean Absolute Error")
-        axs[2].set_ylabel("Relative Error")
+        """
+        figd, ax = plt.subplots(1, 1, figsize=(3, 4))
+        _plot_percentile(
+            ax, ["embedding/128", "linear/128", "baseline/mlp"], p=5,
+            labels=[
+                "Pitot", "Linear Factorization",
+                "Single Network"])
+        ax.set_ylabel("1% Overprovisioning")
+        _fmt_axes(figd, ax)
+        """
 
-        _fmt_axes(fig, axs)
-        return {"comparisons": fig}
+        return {
+            "comparisons_a": figa, "comparisons_b": figb,
+            "comparisons_c": figc}
 
     @staticmethod
     def ablations_mf(args):
         """Ablation plots."""
-        fig, axs = plt.subplots(1, 2, figsize=(6, 4))
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3))
         _plot(
             axs[0], [32, 64, 128, 256, 512],
             pattern=args.path + "/embedding/{}",
@@ -142,7 +191,7 @@ class Figures:
     @staticmethod
     def ablations_if(args):
         """Ablation plots."""
-        fig, axs = plt.subplots(1, 2, figsize=(6, 4))
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3))
         _plot(
             axs[0], [1, 2, 3, 4],
             pattern=args.path + "/interference/{}",
@@ -167,7 +216,6 @@ class Figures:
     @staticmethod
     def interference(args):
         """Interference evaluation (2-way)."""
-        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
         methods = [
             "interference/2", "interference/discard", "interference/ignore"]
         methods3 = [
@@ -175,22 +223,26 @@ class Figures:
             "interference3/no-smt"]
         names = ["Interference-Aware", "Discard", "Ignore"]
         names3 = ["Interference-Aware", "Discard", "Ignore", "SMT Disabled"]
-        _plot(axs[0], methods, labels=names, legend=False)
-        _plot(axs[1], methods, labels=names, key="if", legend=False)
-        _plot(axs[2], methods3, labels=names3, key="if")
-        _sharey(axs)
 
-        axs[0].set_ylabel("Percent Error")
+        figa, ax = plt.subplots(1, 1, figsize=(4, 3))
+        _plot(ax, methods, labels=names, key="if")
+        ax.set_ylabel("Percent Error")
+        _fmt_axes(figa, ax)
 
-        axs[0].set_title("Non-interference Error")
-        axs[1].set_title("Interference Error")
-        axs[2].set_title("Interference Error (3-way)")
+        figb, ax = plt.subplots(1, 1, figsize=(4, 3))
+        _plot(ax, methods, labels=names)
+        ax.set_ylabel("Percent Error")
+        ax.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        _fmt_axes(figb, ax)
 
-        _sharey(axs)
-        _fmt_axes(fig, axs)
-        for ax in axs:
-            ax.set_ylim(0, 0.35)
-        return {"interference": fig}
+        figc, ax = plt.subplots(1, 1, figsize=(4, 3))
+        _plot(ax, methods3, labels=names3, key="if")
+        ax.set_ylabel("Percent Error")
+        _fmt_axes(figc, ax)
+
+        return {
+            "interference_a": figa, "interference_b": figb,
+            "interference_c": figc}
 
 
 def _main(args):

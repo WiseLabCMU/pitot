@@ -112,6 +112,20 @@ def _plot_m_suite(ax, dataset, M):
             label=display[k], marker=m)
 
 
+def _notick(fig, ax):
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.grid()
+    ax.legend()
+    for axis in [ax.xaxis, ax.yaxis]:
+        for tick in axis.get_major_ticks():
+            tick.tick1line.set_visible(False)
+            tick.tick2line.set_visible(False)
+            tick.label1.set_visible(False)
+            tick.label2.set_visible(False)
+    fig.tight_layout()
+
+
 def _main(args):
 
     dataset = np.load(args.data)
@@ -119,26 +133,18 @@ def _main(args):
     M = _tsne(data, "M", dims=64)
     P = _tsne(data, "P", dims=64)
 
-    fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    _plot_m_suite(ax, dataset, M)
+    _notick(fig, ax)
+    fig.savefig(os.path.join(args.out, "tsne_a.png"))
 
-    _plot_m_suite(axs[0], dataset, M)
-    _plot_p_arch(axs[1], dataset, P)
-    _plot_p_runtime(axs[2], dataset, P)
-    axs[0].set_title("Module Embedding")
-    axs[1].set_title("Platform Embedding (By Architecture)")
-    axs[2].set_title("Platform Embedding (By Runtime)")
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    _plot_p_arch(ax, dataset, P)
+    _notick(fig, ax)
+    fig.savefig(os.path.join(args.out, "tsne_b.png"))
 
-    for ax in axs:
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.grid()
-        ax.legend()
-        for axis in [ax.xaxis, ax.yaxis]:
-            for tick in axis.get_major_ticks():
-                tick.tick1line.set_visible(False)
-                tick.tick2line.set_visible(False)
-                tick.label1.set_visible(False)
-                tick.label2.set_visible(False)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    _plot_p_runtime(ax, dataset, P)
+    _notick(fig, ax)
+    fig.savefig(os.path.join(args.out, "tsne_c.png"))
 
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.out, "tsne.png"))

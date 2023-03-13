@@ -34,16 +34,17 @@ def _load(path):
         mape = jax.vmap(obj.mape)(y_pred, indices)
         summary[cfg["name"]] = {
             "mean": np.mean(mape),
-            "std": np.sqrt(np.var(mape)),
-            "std_all": np.sqrt(np.var(error)),
-            "replicates": mape.tolist()
+            "std": np.sqrt(np.var(mape, ddof=1)),
+            "percentile": np.percentile(error, np.arange(100)),
+            "replicates": mape
         }
         if "C_bar" in result:
             baseline = jax.vmap(obj.mape)(result["C_bar"], indices)
+            error = jax.vmap(obj.perror)(result["C_bar"], indices)
             summary[cfg["name"]].update({
-                "baseline": baseline.tolist(),
                 "baseline_mean": np.mean(baseline),
-                "baseline_std": np.sqrt(np.var(baseline))
+                "baseline_std": np.sqrt(np.var(baseline, ddof=1)),
+                "baseline_percentile": np.percentile(error, np.arange(100))
             })
     return summary
 

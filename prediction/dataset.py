@@ -4,7 +4,7 @@ import numpy as np
 from jax import numpy as jnp
 
 from beartype.typing import NamedTuple
-from jaxtyping import Float32, Array, Integer, Bool
+from jaxtyping import Float32, Array, Integer, Bool, Float
 
 
 class Dataset(NamedTuple):
@@ -22,6 +22,7 @@ class Dataset(NamedTuple):
     x_p: platform side information.
     x_m: module side information (log-opcodes).
     log: whether this dataset is in log-space.
+    offset: offset used for normalization.
     """
 
     data: Float32[Array, "Np Nm"]
@@ -32,11 +33,19 @@ class Dataset(NamedTuple):
     x_p: Float32[Array, "Np Dp"]
     x_m: Float32[Array, "Nm Dm"]
     log: bool
+    offset: float
 
     def to_mask(self, ij: Integer[Array, "n d"]) -> Bool[Array, "Np Nm"]:
         """Convert list of indices to mask."""
         return jnp.zeros_like(
             self.data, dtype=jnp.bool_).at[ij[:, 0], ij[:, 1]].set(True)
+
+    def to_ms(self, x: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Convert values in dataset units to milliseconds."""
+        if self.log:
+            return jnp.exp(x) * self.offset / 1000
+        else:
+            return x * self.offset / 1000
 
     @classmethod
     def from_npz(
@@ -78,4 +87,5 @@ class Dataset(NamedTuple):
 
         return cls(
             data=jnp.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0),
-            x=x, y=y, if_x=if_x, if_y=if_y, x_p=x_p, x_m=x_m, log=log)
+            x=x, y=y, if_x=if_x, if_y=if_y, x_p=x_p, x_m=x_m,
+            log=log, offset=offset)
