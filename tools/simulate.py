@@ -28,6 +28,9 @@ def _parse(p):
     p.add_argument(
         "-n", "--replicates", type=int, default=10,
         help="Number of replicates to run.")
+    p.add_argument(
+        "--percentile", type=int, default=5,
+        help="Calibration percentile.")
     return p
 
 
@@ -61,7 +64,7 @@ def _main(args):
         if predictor is not None:
             predictor = os.path.join(args.path, predictor, "0.1.npz")
         return SimulatedOrchestrator(
-            mf_obj, sim, predictor=predictor, **kwargs)
+            mf_obj, sim, predictor=predictor, p=args.percentile, **kwargs)
 
     orchestrators = {
         "oracle": _create(predictor=None),

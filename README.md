@@ -34,6 +34,8 @@ python manage.py experiments embedding/* features/* linear/128 baseline/*
 python manage.py experiments interference/* -d data/data.if.npz
 python manage.py experiments interference3/discard interference3/ignore interference3/2 -d data/data.if3.npz
 python manage.py experiments interference3/no-smt -d data/data.if3.mc.npz
+python manage.py simulate -o results-simulation/p1 --percentile 1
+python manage.py simulate -o results-simulation/p5 --percentile 5
 ```
 
 To draw the figures:
@@ -42,4 +44,5 @@ python manage.py compare
 python manage.py figures
 python manage.py tsne
 python manage.py plot_simulation
+python manage.py embedded
 ```

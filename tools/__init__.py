@@ -12,6 +12,7 @@ from . import figures
 from . import tsne
 from . import simulate
 from . import plot_simulation
+from . import embedded
 
 
 commands = {
@@ -26,5 +27,6 @@ commands = {
     "figures": figures,
     "tsne": tsne,
     "simulate": simulate,
-    "plot_simulation": plot_simulation
+    "plot_simulation": plot_simulation,
+    "embedded": embedded
 }

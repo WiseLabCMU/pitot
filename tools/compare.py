@@ -99,13 +99,14 @@ def _plot_percentile(
     for v, label, fmt in zip(values, labels, format):
         ax.plot(
             np.array(data[v]["splits"]),
-            -np.array(data[v][key]["percentile"])[:, p],
+            np.exp(-np.array(data[v][key]["percentile"])[:, p]) - 1,
             fmt, label=label)
 
     if baseline is not None:
         ax.plot(
             np.array(data[values[-1]]["splits"]),
-            -np.array(data[values[-1]][key]["baseline_percentile"])[:, p],
+            np.exp(-np.array(
+                data[values[-1]][key]["baseline_percentile"])[:, p]) - 1,
             format[-1], label=baseline)
 
     if legend:
@@ -119,7 +120,7 @@ class Figures:
     @staticmethod
     def comparison(args):
         """Baseline comparisons."""
-        figa, ax = plt.subplots(1, 1, figsize=(4, 3))
+        figa, ax = plt.subplots(1, 1, figsize=(3, 3))
         _plot(
             ax, ["embedding/128", "linear/128", "baseline/mlp"],
             labels=[
@@ -128,7 +129,7 @@ class Figures:
         ax.set_ylabel("Mean Absolute Error")
         _fmt_axes(figa, ax)
 
-        figb, ax = plt.subplots(1, 1, figsize=(4, 3))
+        figb, ax = plt.subplots(1, 1, figsize=(3, 3))
         _plot(
             ax, ["embedding/128", "baseline/device_mlp"],
             labels=["Pitot", "Per-Device"],
@@ -136,7 +137,7 @@ class Figures:
         ax.set_ylabel("Mean Absolute Error")
         _fmt_axes(figb, ax)
 
-        figc, ax = plt.subplots(1, 1, figsize=(4, 3))
+        figc, ax = plt.subplots(1, 1, figsize=(3, 3))
         _plot(
             ax, [
                 "embedding/128", "baseline/module_only",
@@ -155,15 +156,22 @@ class Figures:
     @staticmethod
     def percentile(args):
         """Comparison of calibration magnitude."""
-        fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+        fig, axs = plt.subplots(1, 2, figsize=(6, 3))
         _plot_percentile(
-            ax, ["embedding/128", "linear/128", "baseline/mlp"], p=5,
+            axs[0], ["embedding/128", "linear/128", "baseline/mlp"], p=1,
             labels=[
                 "Pitot", "Linear Factorization",
-                "Single Network"])
-        ax.set_ylabel("5% Calibration Margin")
-        _fmt_axes(fig, ax)
-        fig.tight_layout(pad=0.5)
+                "Single Network"], legend=False)
+        _plot_percentile(
+            axs[1], ["embedding/128", "linear/128", "baseline/mlp"], p=5,
+            labels=[
+                "Pitot", "Linear Factorization",
+                "Single Network"], legend=True)
+        axs[0].set_ylabel("Calibration Margin")
+        axs[0].set_title("99% Certainty")
+        axs[1].set_title("95% Certainty")
+        _fmt_axes(fig, axs)
+
         return {"percentile": fig}
 
     @staticmethod
@@ -211,7 +219,6 @@ class Figures:
         axs[0].set_ylabel("Relative Error")
         axs[0].set_title("Non-interference Error")
         axs[1].set_title("Interference Error")
-
         _sharey(axs)
         _fmt_axes(fig, axs)
         for ax in axs:

@@ -48,8 +48,10 @@ class Figures:
         _, S_iid, _ = np.linalg.svd(X_iid)
 
         fig, ax = plt.subplots(1, 1, figsize=(4.5, 3))
-        ax.plot(np.arange(25), S[:25], label="Residual Spectrum")
-        ax.plot(np.arange(25), S_iid[:25], label="Random Matrix")
+        ax.plot(np.arange(25), S[:25], 'o-', label="Residual Spectrum")
+        ax.plot(np.arange(25), S_iid[:25], '--', label="Random Matrix")
+        ax.set_yscale('log')
+        ax.set_ylabel("Singular value (log-scale)")
         ax.set_xlabel("First 25 Singular Values")
         ax.grid()
         ax.legend()
@@ -107,8 +109,10 @@ class Figures:
         baseline = ds["data"][ds["if_platform"], ds["if_module"]]
         interference = ds["if_data"] / baseline - 1
         fig, ax = plt.subplots(1, 1, figsize=(4.5, 3))
-        ax.hist(interference, bins=np.linspace(0, 1.50, 16), density=True)
+        ax.hist(interference, bins=np.linspace(0, 2.50, 51), density=True)
+        ax.set_yscale('log')
         ax.set_xlabel("Interference Slowdown")
+        ax.set_ylabel("Probability (log-scale)")
         ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
         ax.grid()
         fig.tight_layout()
