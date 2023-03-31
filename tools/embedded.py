@@ -54,9 +54,8 @@ def _main(args):
 
     methods = {
         "embedding/128": "Pitot",
-        "baseline/mlp": "Single Network",
         "linear/128": "Linear Factorization",
-        "baseline/device_mlp": "Per-Device",
+        "baseline/mlp": "Single Network",
     }
 
     ds = Dataset.from_npz(args.data)
