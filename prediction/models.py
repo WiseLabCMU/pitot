@@ -12,15 +12,14 @@ from jax import numpy as jnp
 import haiku as hk
 
 from beartype.typing import Optional
-from jaxtyping import Integer, Array, Float32, PyTree
+from jaxtyping import Integer, Array, PyTree
 
 from .modules import (
     LearnedFeatures, HybridEmbedding, SideInformation, simple_mlp, MultiMLP)
 from .rank1 import Rank1, Rank1Solution
 
 
-MFResult = PyTree[Float32[Array, "b"]]
-MFIndices = PyTree[Integer[Array, "b f"]]
+MFIndices = Integer[Array, "b f"]
 MFBaseline = Optional[Rank1Solution]
 
 
@@ -53,7 +52,7 @@ class MatrixFactorization(hk.Module):
 
     def __call__(
         self, ij: MFIndices, baseline: MFBaseline = None, full: bool = False
-    ) -> MFResult:
+    ) -> PyTree:
         """Ordinary Matrix Factorization with External Baseline.
 
         C_ij_hat = C_ij_bar + p_i^Tm_j.
@@ -91,10 +90,7 @@ class MatrixFactorization(hk.Module):
 
 
 class MatrixFactorizationIF(MatrixFactorization):
-    """Matrix factorization with interference support.
-
-    TODO: convert this to new format.
-    """
+    """Matrix factorization with interference support."""
 
     def __init__(self, *args, s: int = 3, beta: float = 0.001, **kwargs):
         super().__init__(*args, **kwargs)
@@ -103,7 +99,7 @@ class MatrixFactorizationIF(MatrixFactorization):
 
     def __call__(
         self, ijk: MFIndices, baseline: MFBaseline = None, full=False
-    ) -> MFResult:
+    ) -> PyTree:
         """Matrix Factorization with Interference.
 
         C_ijk_hat =
@@ -144,6 +140,14 @@ class MatrixFactorizationIF(MatrixFactorization):
 class BaselineModel(hk.Module):
     """Abstract class with call wrapper."""
 
+    def __init__(
+        self, alpha: float = 0.1, shape: tuple[int, int] = (10, 10),
+        name: str = "Baseline"
+    ) -> None:
+        super().__init__(name=name)
+        self.alpha = alpha
+        self.shape = shape
+
     def _call(self, ij):
         raise NotImplementedError()
 
@@ -155,7 +159,7 @@ class BaselineModel(hk.Module):
 
     def __call__(
         self, ij: MFIndices, baseline: MFBaseline = None, full: bool = False
-    ) -> MFResult:
+    ) -> PyTree:
         """Non-matrix models."""
         if full:
             x, y = jnp.meshgrid(
@@ -175,13 +179,11 @@ class NaiveMLP(BaselineModel):
     def __init__(
             self, P, M, alpha=0.1, layers=[64, 64], shape=(10, 10),
             name="NaiveMLP"):
-        super().__init__(name=name)
+        super().__init__(alpha=alpha, shape=shape, name=name)
         self.mlp = simple_mlp(
             list(layers) + [1], activation=jax.nn.tanh, name="mlp")
         self.P = P()
         self.M = M()
-        self.alpha = alpha
-        self.shape = shape
 
     def _call(self, ij):
         x_in = jnp.concatenate([self.P(ij[:, 0]), self.M(ij[:, 1])], axis=1)
@@ -194,11 +196,9 @@ class DeviceModel(BaselineModel):
     def __init__(
             self, M, alpha=0.1, layers=[64, 64], shape=(10, 10),
             name="DeviceModel"):
-        super().__init__(name=name)
+        super().__init__(alpha=alpha, shape=shape, name=name)
         self.M = M()
         self.mlps = MultiMLP(list(layers) + [1], jax.nn.tanh, shape[0])
-        self.alpha = alpha
-        self.shape = shape
 
     def _call(self, ij):
         res = self.mlps(self.M(ij[:, 0]), ij[:, 1]).reshape(-1)

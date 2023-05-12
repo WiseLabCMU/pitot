@@ -50,10 +50,9 @@ def _fmt_axes(fig, axs, yp=True):
 
 
 def _plot(
-    ax, values: list, labels: list = None, relative=None, pattern="results/{}",
-    format: list[str] = ['.-', '.:', '.--', '.-.'], key="mf", legend=True,
-    baseline=None
-) -> None:
+    ax, values: list, labels=None, relative=None, pattern="results/{}",
+    format=['.-', '.:', '.--', '.-.'], key="mf", legend=True, baseline=None
+):
     labels = values if labels is None else labels
     data = {
         v: _load(os.path.join(pattern.format(v), "summary.json"))

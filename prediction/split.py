@@ -4,11 +4,14 @@ from jax import numpy as jnp
 from jax import random
 from jax import tree_util
 
-from jaxtyping import UInt32, Array, Shaped, PyTree, Integer
+from jaxtyping import Array, Shaped, PyTree, Integer
 from beartype.typing import Optional, Union
 
 
-def keys(key: UInt32[Array, "2"], n: int) -> UInt32[Array, "k 2"]:
+PRNGSeed = Union[Integer[Array, "..."], random.PRNGKeyArray]
+
+
+def keys(key: PRNGSeed, n: int) -> PRNGSeed:
     """Split PRNGKey into jnp.array of keys."""
     return jnp.array(random.split(key, n))
 
@@ -29,8 +32,7 @@ def tree_index(
 
 
 def split(
-    key: UInt32[Array, "2"], data: PyTree[Shaped[Array, "n ..."]],
-    split: int = 100
+    key: PRNGSeed, data: PyTree[Shaped[Array, "n ..."]], split: int = 100
 ) -> tuple[Shaped[Array, "n1 ..."], Shaped[Array, "n2 ..."]]:
     """Split off an exact number of data points, where each point is a row.
 
@@ -52,7 +54,7 @@ def split(
 
 
 def crossval(
-    key: UInt32[Array, "2"], data: Shaped[Array, "n ..."], k: int = 10
+    key: PRNGSeed, data: Shaped[Array, "n ..."], k: int = 10
 ) -> tuple[Shaped[Array, "k n1 ..."], Shaped[Array, "k n2 ..."]]:
     """Generate k-fold cross-validation splits.
 
@@ -84,8 +86,7 @@ def crossval(
 
 
 def batch(
-    key: UInt32[Array, "2"], data: Shaped[Array, "n ..."],
-    batch: Optional[int] = 64
+    key: PRNGSeed, data: Shaped[Array, "n ..."], batch: Optional[int] = 64
 ) -> Shaped[Array, "b ..."]:
     """Sample IID batch along axis 0.
 

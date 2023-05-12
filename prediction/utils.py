@@ -57,11 +57,8 @@ class Index:
         display: function that transforms items to their final display names.
         """
         items = sorted(list(set([obj[key] for obj in objs])))
-        if display is None:
-            display = items
-        else:
-            display = [display(i) for i in items]
-        return cls(items, display=display)
+        return cls(items, display=(
+            items if display is None else [display(i) for i in items]))
 
     def __matmul__(self, B: "Index") -> "Index":
         """Set product is denoted by A @ B."""
@@ -70,7 +67,7 @@ class Index:
             "{}, {}".format(a, b) for a in self.display for b in B.display]
         return Index(items, display=display)
 
-    def __add__(self, B: Union[str, list[str], "Index"]) -> "Index":
+    def __add__(self, B: "Index") -> "Index":
         """Add index or string."""
         return Index(
             list(self.key) + list(B.key),
@@ -138,11 +135,11 @@ class Matrix(NamedTuple):
         else:
             ax.set_xticks([])
 
-    def __getitem__(
+    def __getitem__(  # type: ignore
         self, val: Union[MatrixSlice, tuple[MatrixSlice, MatrixSlice]]
     ) -> "Matrix":
         """Index cylinder set intersections with numpy arrays (or slices)."""
-        if isinstance(val, MatrixSlice):
+        if isinstance(val, slice) or isinstance(val, np.ndarray):
             val = (val, slice(None, None, None))
         rows, cols = val
 
@@ -158,7 +155,7 @@ class Matrix(NamedTuple):
         return Matrix(
             data=transform(self.data), rows=self.rows, cols=self.cols)
 
-    def __add__(self, B: "Matrix") -> "Matrix":
+    def __add__(self, B: "Matrix") -> "Matrix":  # type: ignore
         """Append matrix in axis 0."""
         return Matrix(
             data=np.concatenate([self.data, B.data], axis=0),

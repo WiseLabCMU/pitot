@@ -33,8 +33,8 @@ class Rank1Solution(NamedTuple):
     y: column features.
     """
 
-    x: Union[float, Float[Array, "nx"]]
-    y: Union[float, Float[Array, "ny"]]
+    x: Float[Array, "nx"]
+    y: Float[Array, "ny"]
 
 
 class Rank1:

@@ -3,7 +3,7 @@
 import numpy as np
 from jax import numpy as jnp
 
-from beartype.typing import NamedTuple
+from beartype.typing import NamedTuple, Optional
 from jaxtyping import Float32, Array, Integer, Bool, Float
 
 
@@ -28,8 +28,8 @@ class Dataset(NamedTuple):
     data: Float32[Array, "Np Nm"]
     x: Float32[Array, "Nf 2"]
     y: Float32[Array, "Nf"]
-    if_x: Float32[Array, "Ni k"]
-    if_y: Float32[Array, "Ni"]
+    if_x: Optional[Float32[Array, "Ni k"]]
+    if_y: Optional[Float32[Array, "Ni"]]
     x_p: Float32[Array, "Np Dp"]
     x_m: Float32[Array, "Nm Dm"]
     log: bool

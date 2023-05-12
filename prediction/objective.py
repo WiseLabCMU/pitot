@@ -62,7 +62,7 @@ class Objective(NamedTuple):
         return jnp.arange(
             self.y.shape[0], dtype=jnp.uint16 if u16 else jnp.uint32)
 
-    def index(
+    def index(  # type: ignore
         self, pred: MFPrediction, idx: Integer[Array, "n"]
     ) -> tuple[Float32[Array, "n"], Float32[Array, "n"]]:
         """Index into dataset y values (and predictions).

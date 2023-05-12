@@ -8,8 +8,8 @@ from jax import random, value_and_grad, vmap
 from jax import numpy as jnp
 import optax
 
-from beartype.typing import NamedTuple, Optional, Callable, Union
-from jaxtyping import Float32, Array, Integer, PyTree, UInt32
+from beartype.typing import NamedTuple, Optional, Callable, Union, cast
+from jaxtyping import Float32, Array, Integer, PyTree
 from jaxlib.xla_extension import Device
 import haiku as hk
 
@@ -44,10 +44,10 @@ class Replicate(NamedTuple):
     test: test set.
     """
 
-    baseline: Union[VmapSpec, Optional[Rank1Solution]]
-    train: Union[VmapSpec, list[Integer[Array, "n1"]]]
-    val: Union[VmapSpec, list[Integer[Array, "n2"]]]
-    test: Union[VmapSpec, list[Integer[Array, "n3"]]]
+    baseline: Optional[Rank1Solution]
+    train: list[Integer[Array, "n1"]]
+    val: list[Integer[Array, "n2"]]
+    test: list[Integer[Array, "n3"]]
 
 
 class CrossValidationTrainer:
@@ -68,7 +68,7 @@ class CrossValidationTrainer:
 
     def __init__(
         self, dataset: Dataset, model: Callable[[], hk.Module],
-        objectives: list[Objective] = None,
+        objectives: list[Objective] = [],
         optimizer: Optional[optax.GradientTransformation] = None,
         replicates: int = 10, k: int = 10,
         do_baseline: bool = True, cpu: Optional[Device] = None
@@ -80,8 +80,8 @@ class CrossValidationTrainer:
         self.model = hk.without_apply_rng(hk.transform(forward))
         self.dataset = dataset
         self.objectives = objectives
-        assert(len(objectives) > 0)
-        assert(objectives[0].name == "mf")
+        assert len(objectives) > 0
+        assert objectives[0].name == "mf"
         self.optimizer = optax.adam(0.001) if optimizer is None else optimizer
 
         self.replicates = replicates
@@ -92,7 +92,7 @@ class CrossValidationTrainer:
         self.step = jax.jit(self._step)
         self.epoch_val = jax.jit(self._epoch_val)
 
-    def _init(self, key: UInt32[Array, "2"], replicate: Replicate):
+    def _init(self, key: split.PRNGSeed, replicate: Replicate):
         """Initialize model parameters and optimization state."""
         params = self.model.init(
             key, jnp.zeros((1, 5), dtype=int), baseline=replicate.baseline)
@@ -100,7 +100,7 @@ class CrossValidationTrainer:
         return TrainState(params, opt_state)
 
     def _step(
-        self, key: UInt32[Array, "2"], state: TrainState, repl: Replicate
+        self, key: split.PRNGSeed, state: TrainState, repl: Replicate
     ) -> tuple[Float32[Array, ""], TrainState]:
         """Single training step.
 
@@ -129,11 +129,11 @@ class CrossValidationTrainer:
         return loss, TrainState(params, opt_state)
 
     def epoch_train(
-        self, key: UInt32[Array, "2"], state: TrainState, repl: Replicate,
+        self, key: split.PRNGSeed, state: TrainState, repl: Replicate,
         epoch_size: int = 100
     ) -> tuple[Float32[Array, ""], TrainState]:
         """Single epoch (training only) for a single replicate."""
-        epoch_loss = 0.
+        epoch_loss: Float32[Array, ""] = jnp.array(0.)
         for ki in random.split(key, epoch_size):
             loss, state = self.step(ki, state, repl)
             epoch_loss += loss
@@ -159,11 +159,12 @@ class CrossValidationTrainer:
         return val_loss, checkpoint
 
     def train(
-        self, key: UInt32[Array, "2"], repl: Replicate, epochs: int = 100,
+        self, key: split.PRNGSeed, repl: Replicate, epochs: int = 100,
         epoch_size: int = 100, tqdm=tqdm_base
     ) -> dict:
         """Run training for k-fold CV set."""
-        replicate_spec = Replicate(baseline=None, train=0, val=0, test=None)
+        replicate_spec = Replicate(
+            baseline=None, train=0, val=0, test=None)  # type: ignore
         vepoch_train = vmap(
             partial(self.epoch_train, epoch_size=epoch_size),
             in_axes=(0, 0, replicate_spec))
@@ -185,7 +186,7 @@ class CrossValidationTrainer:
 
     def train_replicates(
         self, epoch_size: int = 100, epochs: int = 100,
-        key: Union[int, UInt32[Array, "2"]] = 42, p: float = 0.25,
+        key: Union[int, random.PRNGKeyArray] = 42, p: float = 0.25,
         tqdm=tqdm_base
     ) -> dict:
         """Train replicates.
@@ -233,7 +234,10 @@ class CrossValidationTrainer:
         ]))
 
         replicates = Replicate(
-            baseline=baseline, train=train, val=val, test=test)
+            baseline=baseline,
+            train=cast(list[Integer[Array, "n1"]], train),
+            val=cast(list[Integer[Array, "n2"]], val),
+            test=cast(list[Integer[Array, "n3"]], test))
         result = vmap(partial(
             self.train, epochs=epochs, epoch_size=epoch_size, tqdm=tqdm)
         )(split.keys(key, self.replicates), replicates)

@@ -18,7 +18,7 @@ class History:
 
     def __init__(self, cpu: Optional[Device] = None) -> None:
 
-        self.history = {}
+        self.history: dict = {}
         self.cpu = cpu
         self.best = None
 
