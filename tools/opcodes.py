@@ -8,14 +8,23 @@ from prediction import apply_recursive, Index, Matrix
 
 
 _desc = "Aggregate benchmark module opcode counts."
+_indices = {}
 
 
 def _load(path):
     with open(path) as f:
         data = json.load(f)
-    return (
-        np.array(data["opcodes"], dtype=np.uint32),
-        data["module"]["file"].replace("wasm/", "").replace(".wasm", ""))
+    module = data["module"]["file"].replace("wasm/", "").replace(".wasm", "")
+
+    argv = tuple(data["module"].get("args", {}).get("argv", []))
+    if argv:
+        if module not in _indices:
+            _indices[module] = {}
+        if argv not in _indices[module]:
+            _indices[module][argv] = len(_indices[module])
+        module += "_{}".format(_indices[module][argv])
+
+    return np.array(data["opcodes"], dtype=np.uint32), module
 
 
 def _parse(p):

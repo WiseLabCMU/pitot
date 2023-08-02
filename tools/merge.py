@@ -25,11 +25,14 @@ def _main(args):
     assert platform["data"].shape[1] == platform["feature"].shape[0]
     assert opcodes["data"].shape[1] == opcodes["opcode"].shape[0]
 
+    valid_modules = np.sum(matrix["data"] > 0, axis=0) > 1
+    valid_platforms = np.sum(matrix["data"] > 0, axis=1) > 1
+
     np.savez(
-        args.out, data=matrix["data"],
-        module=matrix["module"],
-        module_data=opcodes["data"],
+        args.out, data=matrix["data"][valid_platforms, :][:, valid_modules],
+        module=matrix["module"][valid_modules],
+        module_data=opcodes["data"][valid_modules],
         module_features=opcodes["opcode"],
-        platform=matrix["platform"],
-        platform_data=platform["data"],
+        platform=matrix["platform"][valid_platforms],
+        platform_data=platform["data"][valid_platforms],
         platform_features=platform["feature"])

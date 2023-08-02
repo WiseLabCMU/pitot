@@ -51,6 +51,12 @@ def _if_model(s):
 
 
 PRESETS = {
+    # Log-baseline objective
+    "logbaseline/no-log-no-baseline": {
+        ("training_args", "do_baseline"): False,
+        ("objectives", 0, "log"): False},
+    "logbaseline/no-log": {("objectives", 0, "log"): False},
+    "logbaseline/no-baseline": {("objectives", 0, "log"): False},
     # Embedding Dimension
     "embedding/32": {("model_args", "layers"): [128, 32]},
     "embedding/64": {("model_args", "layers"): [128, 64]},

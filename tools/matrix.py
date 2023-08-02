@@ -10,6 +10,7 @@ from prediction import apply_recursive, Index, Matrix
 
 
 _desc = "Create execution time matrix from data traces."
+_indices = {}
 
 
 def _load(path, runtimes: dict = {}):
@@ -27,14 +28,29 @@ def _load(path, runtimes: dict = {}):
     benchmark_ext = data["module"]["file"].split(os.path.sep)[1:]
     module = os.path.splitext(os.path.join(*benchmark_ext))[0]
 
+    # Add global index for args
+    argv = tuple(data["module"].get("args", {}).get("argv", []))
+    if argv:
+        if module not in _indices:
+            _indices[module] = {}
+        if argv not in _indices[module]:
+            _indices[module][argv] = len(_indices[module])
+        module += "_{}".format(_indices[module][argv])
+
+    # iwasm-wali is the same as iwasm
+    runtime = data["module"]["name"].split('.')[-1]
+    if runtime == "iwasm-wali":
+        runtime = "iwasm"
+
+    # manually exclude a benchmark that's causing problems
+    if module == "libsodium/ed25519_convert":
+        return None
     if len(t) < 2:
         return None
     else:
         return {
             "device": runtimes.get(data["module"]["parent"])["name"],
-            "module": module,
-            "runtime": data["module"]["name"].split('.')[-1],
-            "mean": np.mean(t[1:]),
+            "module": module, "runtime": runtime, "mean": np.mean(t[1:]),
         }
 
 
