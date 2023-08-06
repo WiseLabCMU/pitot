@@ -31,17 +31,19 @@ class MatrixFactorization(hk.Module):
     P: Platform embedding `P = f_p(U_p, X_p; W_p)`.
     M: Module embedding `M = f_m(U_m, X_m; W_m)`.
     alpha: Multiplier applied to prediction when predicting baseline residuals.
+    log: Whether this model is in log-space or natural space.
     shape: (N_p, N_m) size.
     name: module name.
     """
 
     def __init__(
-        self, P, M, alpha: float = 0.001,
+        self, P, M, alpha: float = 0.001, log: bool = True,
         shape: tuple[int, int] = (10, 10), name: str = "Matrix Factorization"
     ) -> None:
         super().__init__(name=name)
 
         self.alpha = alpha
+        self.log = log
         self.P = P(samples=shape[0], name="P")
         self.M = M(samples=shape[1], name="M")
 
@@ -72,7 +74,10 @@ class MatrixFactorization(hk.Module):
 
         if full:
             C_bar = Rank1.predict(baseline)
-            C_hat = C_bar + self.alpha * jnp.matmul(P, M.T)
+            if self.log:
+                C_hat = C_bar + self.alpha * jnp.matmul(P, M.T)
+            else:
+                C_hat = jnp.exp(C_bar) * jnp.matmul(P, M.T)
 
             def _inner(ij):
                 i, j = ij[:2]
@@ -84,7 +89,10 @@ class MatrixFactorization(hk.Module):
             def _inner(ij):
                 i, j = ij[:2]
                 C_bar = Rank1.predict(baseline, ij[:2])
-                return C_bar + self.alpha * jnp.dot(P[i], M[j])
+                if self.log:
+                    return C_bar + self.alpha * jnp.dot(P[i], M[j])
+                else:
+                    return jnp.exp(C_bar) * jnp.dot(P[i], M[j])
 
             return self._vvmap(_inner, ij)
 
@@ -190,6 +198,27 @@ class NaiveMLP(BaselineModel):
         return self.mlp(x_in).reshape(-1)
 
 
+class LinearCostModel(BaselineModel):
+    """Simple model which has a cost for each opcode."""
+
+    def __init__(self, M, shape=(10, 10), name="LinearCostModel"):
+        super().__init__(alpha=1.0, shape=shape, name=name)
+        self.M = M()
+    
+    def _call(self, ij):
+        # Pad with ones for bias
+        opcodes = self.M(ij[:, 1])
+        opcodes = jnp.concatenate(
+            [jnp.exp(opcodes) - 1, jnp.ones((opcodes.shape[0], 1))], axis=1)
+        # Different w for each platform
+        # Includes bias (dim already added to opcodes)
+        w = hk.get_parameter(
+            "w", (opcodes.shape[1],), jnp.float32, init=jnp.zeros)
+        speed = hk.get_parameter(
+            "speed", (self.shape[0],), jnp.float32, init=jnp.ones)
+        return jnp.sum(opcodes * w.reshape(1, -1), axis=1) * speed[ij[:, 0]]
+
+
 class DeviceModel(BaselineModel):
     """Per-device modeling using WebAssembly as a virtual CPU simulator."""
 
@@ -215,7 +244,7 @@ def _feature_embedding(data, layers=[], dim=4, scale=0.01):
 
 
 def embedding(
-        dataset, X_p=None, X_m=None, alpha=0.001,
+        dataset, X_p=None, X_m=None, alpha=0.001, log=True,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Side Information using NN Embedding."""
     X_p = dataset.x_p if X_p is True else X_p
@@ -223,11 +252,11 @@ def embedding(
     _f = partial(_feature_embedding, layers=layers, dim=dim, scale=scale)
     return partial(
         MatrixFactorization,
-        _f(X_p), _f(X_m), alpha=alpha, shape=shape, name="embedding")
+        _f(X_p), _f(X_m), alpha=alpha, log=log, shape=shape, name="embedding")
 
 
 def interference(
-        dataset, X_p=None, X_m=None, alpha=0.001, s=3,
+        dataset, X_p=None, X_m=None, alpha=0.001, s=3, log=True,
         shape=(10, 10), layers=[64, 32], dim=4, scale=0.01):
     """Matrix Factorization with Interference."""
     X_p = dataset.x_p if X_p is True else X_p
@@ -237,16 +266,16 @@ def interference(
     return partial(
         MatrixFactorizationIF,
         _f(X_p, layers=layers[:-1] + [device_out]), _f(X_m, layers=layers),
-        s=s, alpha=alpha, shape=shape, name="embedding")
+        s=s, alpha=alpha, log=log, shape=shape, name="embedding")
 
 
-def linear(_, alpha=0.001, dim=32, shape=(10, 10), scale=0.01):
+def linear(_, alpha=0.001, log=True, dim=32, shape=(10, 10), scale=0.01):
     """Linear matrix factorization: C_ij = <u_m^{(i)}, u_d^{(j)}>."""
     return partial(
         MatrixFactorization,
         partial(LearnedFeatures, dim=dim, scale=scale),
         partial(LearnedFeatures, dim=dim, scale=scale),
-        alpha=alpha, shape=shape, name="linear")
+        alpha=alpha, log=log, shape=shape, name="linear")
 
 
 def naive_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
@@ -256,6 +285,12 @@ def naive_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):
     return partial(
         NaiveMLP,
         P, M, layers=layers, alpha=alpha, shape=shape, name="naive_mlp")
+
+
+def linear_cost(dataset, shape=(10, 10)):
+    """Linear opcode cost model."""
+    M = partial(SideInformation, dataset.x_m, name="X_m")
+    return partial(LinearCostModel, M, shape=shape)
 
 
 def device_mlp(dataset, alpha=0.1, shape=(10, 10), layers=[64, 64]):

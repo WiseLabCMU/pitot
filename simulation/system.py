@@ -1,31 +1,27 @@
 """Scheduling simulation."""
 
 import numpy as np
-from jax import numpy as jnp
-from jax import random
 
-from beartype.typing import Union, NamedTuple
-from jaxtyping import Float32, Array, UInt32, Int16
+from beartype.typing import Union, Optional
+from jaxtyping import Float32, Int16, Bool
+from numpy import ndarray as Array
 
 from prediction import Dataset, Rank1
+
+from .jobs import JobSpec, Jobs
 from .network import NetworkTopology
+from .algorithms import CandidateAlgorithm, OrchestrationAlgorithm, mask_none
 
 
-class Jobs(NamedTuple):
-    """Compute jobs.
-
-    Attributes
-    ----------
-    src: source (event) device index.
-    dst: destination (action) device index.
-    job: module index.
-    freq: frequency associated with this job.
-    """
-
-    src: Int16[Array, "b"]
-    dst: Int16[Array, "b"]
-    job: Int16[Array, "b"]
-    freq: Float32[Array, "b"]
+def _job_probability(
+    adj: Bool[Array, "Np Np"],
+    p_same: float = 0.33, p_tower: float = 0.33, p_any: float = 0.34
+) -> Float32[Array, "Np Np"]:
+    """Create job destination given source probability matrix."""
+    return (
+        p_any * np.ones(adj.shape) / adj.shape[1]
+        + p_tower * adj / np.sum(adj, axis=1)
+        + p_same * np.eye(adj.shape[0]))
 
 
 class NetworkSimulation:
@@ -36,6 +32,7 @@ class NetworkSimulation:
     key: random seed for network generation.
     dataset: path to source dataset.
     latency_trace: path to latency data.
+    n: total number of devices; sampled with replacement (i.e. bootstrapped).
     n0: number of devices in layer 0 (cloud).
     n1: number of devices in layer 1 (5G edge).
     alpha: concentration parameter for tower devices.
@@ -47,113 +44,90 @@ class NetworkSimulation:
     """
 
     def __init__(
-        self, key: Union[int, UInt32[Array, "2"]] = 42,
+        self, random: Union[np.random.Generator, int] = 42,
         dataset: str = "data/data.npz",
         latency_trace: str = "data/dataset_speedtest_ookla.csv",
-        n0: int = 10, n1: int = 50, alpha: float = 1.0,
+        n: int = 200, n0: int = 10, n1: int = 50, alpha: float = 1.0,
         p_job: tuple[float, float, float] = (0.33, 0.33, 0.34),
         job_scale: float = 0.02,
-        capacity: tuple[float, float, float] = (100.0, 4.0, 1.0),
+        capacity: tuple[float, float, float] = (1000, 4.0, 1.0),
     ) -> None:
-
-        if isinstance(key, int):
-            key = random.PRNGKey(key)
+        random = np.random.default_rng(random)
 
         # Load data, baseline
         self.dataset = Dataset.from_npz(dataset)
-        self.valid = self.dataset.to_mask(self.dataset.x)
+        valid = np.array(self.dataset.to_mask(self.dataset.x))
 
-        self.matrix = self.dataset.to_ms(
-            self.dataset.data).at[~self.valid].set(jnp.inf)
-        self.N, self.M = self.matrix.shape
+        mat = np.array(
+            self.dataset.to_ms(self.dataset.data) / 10, dtype=np.float32)
+        mat[~valid] = np.inf
 
-        self.rank1 = Rank1(self.dataset.data, max_iter=1000).fit(self.valid)
+        rank1 = Rank1(self.dataset.data, max_iter=1000).fit(valid)
 
-        # Make network
-        key, _k = random.split(key, 2)
+        # Bootstrap devices to hit target n
+        self.bootstrap = random.integers(mat.shape[0], size=n)
+        self.matrix = mat[self.bootstrap]
+
         self.network = NetworkTopology.simulate(
-            _k, speed=self.rank1.x, alpha=alpha, n0=n0, n1=n1,
-            latency_trace=latency_trace)
-        self.rtt = self.network.rtt_matrix()
+            random, speed=np.array(rank1.x)[self.bootstrap], alpha=alpha,
+            n0=n0, n1=n1, latency_trace=latency_trace)
 
-        # Job distribution
-        self.P = self.__job_probability(*p_job)
-        self.job_scale = job_scale
+        self.jobspec = JobSpec(
+            weight=_job_probability(self.network.adjacency(), *p_job),
+            freq_mean=-np.array(rank1.y) + np.log(job_scale), freq_std=0.5)
 
-        # Compute
-        self.capacity = sum(
-            c * (self.network.layer == i) for i, c in enumerate(capacity))
+        self.capacity = np.zeros_like(self.network.layer, dtype=np.float32)
+        for i, c in enumerate(capacity):
+            self.capacity[self.network.layer == i] = c
 
-    def __job_probability(
-        self, p_same: float = 0.33, p_tower: float = 0.33, p_any: float = 0.34
-    ) -> Float32[Array, "n n"]:
-        """Create P matrix."""
-        adj = self.network.adjacency()
-        return (
-            p_any * jnp.ones(adj.shape) / adj.shape[1]
-            + p_tower * adj / jnp.sum(adj, axis=1)
-            + p_same * jnp.eye(adj.shape[0]))
+        # Interpolate data on the cloud (L0) to make sure all jobs always have
+        # somewhere to go
+        self.valid = valid[self.bootstrap]
+        self.matrix[self.network.layer == 0] = np.nan_to_num(
+            self.matrix[self.network.layer == 0], posinf=0.0)
+        interp_mask = ~self.valid[self.network.layer == 0]
+        interp = Rank1.predict(rank1)[self.bootstrap][self.network.layer == 0]
+        self.matrix[self.network.layer == 0] += interp * interp_mask
+        self.valid[self.network.layer == 0] = True
 
-    def utilization(self, jobs: Jobs, matrix=None) -> Float32[Array, "b n"]:
+    def utilization(
+        self, jobs: Jobs, matrix: Optional[Float32[Array, "Nj Np"]] = None
+    ) -> Float32[Array, "b n"]:
         """Compute (predicted) resource utilization on each device."""
         if matrix is None:
             matrix = self.matrix
+        else:
+            # Don't allow over-packing
+            matrix = np.maximum(self.matrix, matrix)
+
         return matrix[:, jobs.job].T * jobs.freq.reshape(-1, 1)
 
     def latency(
-        self, jobs: Jobs, matrix=None, device=None
-    ) -> Float32[Array, "b n"]:
+        self, jobs: Jobs, matrix: Optional[Float32[Array, "Nj Np"]] = None,
+        device: Optional[Int16[Array, "Nj"]] = None
+    ) -> Union[Float32[Array, "b n"], Float32[Array, "b"]]:
         """Compute (predicted) latency on each device."""
         if matrix is None:
             matrix = self.matrix
-        matrix = matrix.at[~self.valid].set(jnp.inf)
 
+        rtt = self.network.rtt
         if device is None:
-            return (
-                matrix[:, jobs.job].T
-                + self.rtt[jobs.src]
-                + self.rtt[jobs.dst])
+            return matrix[:, jobs.job].T + rtt[jobs.src] + rtt[jobs.dst]
         else:
             return (
                 matrix[device, jobs.job]
-                + self.rtt[jobs.src, device]
-                + self.rtt[device, jobs.dst])
-
-    def create_jobs(
-        self, key: UInt32[Array, "2"], jobs: int = 100, freq_std: float = 0.5
-    ) -> Jobs:
-        """Sample random jobs."""
-        k1, k2, k3, k4 = random.split(key, 4)
-
-        src = random.choice(k2, self.matrix.shape[0], shape=(jobs,))
-        dst = random.categorical(k3, jnp.log(self.P[src]), axis=1)
-        job = random.choice(k4, self.matrix.shape[1], shape=(jobs,))
-
-        freq_noise = random.normal(k1, shape=(jobs,)) * freq_std
-        job_freq = self.job_scale * jnp.exp(freq_noise - self.rank1.y[job])
-
-        return Jobs(src=src, dst=dst, job=job, freq=job_freq)
+                + rtt[jobs.src, device] + rtt[device, jobs.dst])
 
     def binpack(
-        self, jobs: Jobs, matrix=None
+        self, algorithm: OrchestrationAlgorithm, jobs: Jobs,
+        matrix: Optional[Float32[Array, "Nj Np"]] = None,
+        candidates: CandidateAlgorithm = mask_none
     ) -> tuple[Int16[Array, "n"], Float32[Array, "n"]]:
-        """Perform greedy bin packing.
-
-        Greedy assignment is ordered by the rank1 estimate.
-
-        NOTE: this procedure has to be done iteratively, and is very slow.
-        """
+        """Run bin packing."""
         latency = self.latency(jobs, matrix=matrix)
         util = self.utilization(jobs, matrix=matrix)
-
-        capacity = np.array(self.capacity)
-        assn = np.ones(len(jobs.job), dtype=np.int16) * -1
-        order = np.argsort(jobs.freq * np.exp(self.rank1.y[jobs.job]))
-        for i in order:
-            options = np.argsort(latency[i])
-            choice = np.argmax(capacity[options] > util[i][options])
-            remaining = capacity[options[choice]] - util[i, options[choice]]
-            if remaining > 0:
-                capacity[options[choice]] = remaining
-                assn[i] = options[choice]
-        return assn
+        if candidates is not None:
+            mask = candidates(jobs, self.network.tid, self.network.layer)
+        else:
+            mask = None
+        return algorithm(latency, util, np.copy(self.capacity), mask=mask)

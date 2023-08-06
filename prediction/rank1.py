@@ -50,13 +50,14 @@ class Rank1:
     init_val : Initial x and y values; should be set to 0.5 * E[A].
     max_iter : Max number of iterations.
     tol : Convergence criteria on l2 norm; stops when all replicates converge.
+    log: Whether data is already in log form.
     """
 
     def __init__(
         self, data: Float[Array, "nx ny"], init_val: float = 0.,
-        max_iter: int = 10, tol: float = 1e-5
+        max_iter: int = 10, tol: float = 1e-5, log: bool = True
     ) -> None:
-        self.data = data
+        self.data = data if log else jnp.log(data)
         self.init_val = init_val
         self.max_iter = max_iter
         self.tol = tol
@@ -138,7 +139,7 @@ class Rank1:
     def predict(
         soln: Optional[Rank1Solution],
         indices: Optional[
-            Union[Integer[Array, "2"], Integer[Array, "b 2"]]] = None
+            Union[Integer[Array, "2"], Integer[Array, "b 2"]]] = None,
     ) -> Union[
         float, Float[Array, ""], Float[Array, "b"], Float[Array, "nx ny"]
     ]:

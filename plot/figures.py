@@ -27,7 +27,6 @@ def _parse(p):
         "-d", "--data", help="Dataset file.", default="data/data.npz")
     p.add_argument(
         "--if_data", help="Interference dataset.", default="data/data.if.npz")
-    p.add_argument("-i", "--dpi", help="Out image DPI.", default=400, type=int)
     return p
 
 
@@ -61,7 +60,7 @@ class Figures:
     @staticmethod
     def matrix(args):
         """Matrix dataset 'thumbnail' picture."""
-        fig, axs = plt.subplots(1, 1, figsize=(4, 4))
+        fig, axs = plt.subplots(1, 1, figsize=(5, 4))
         with np.errstate(divide='ignore'):
             data = np.log(np.load(args.data)["data"])
         axs.imshow(data)
@@ -123,6 +122,6 @@ def _main(args):
     for name in args.figures:
         figs = getattr(Figures, name)(args)
         for k, v in figs.items():
-            out = os.path.join(args.out, k + ".png")
+            out = os.path.join(args.out, k + ".pdf")
             print("Created:", out)
-            v.savefig(out, dpi=args.dpi)
+            v.savefig(out)

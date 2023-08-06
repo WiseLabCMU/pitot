@@ -14,13 +14,11 @@ def _parse(p):
     p.add_argument(
         "-f", "--figures", nargs='+',
         default=[
-            "comparison", "percentile", "ablations_mf",
+            "baselines", "components", "percentile", "ablations_mf",
             "ablations_if", "interference"],
         help="Figures to draw.")
     p.add_argument("-o", "--out", help="Output directory.", default="figures")
-    p.add_argument(
-        "-p", "--path", help="Results directory.", default="results")
-    p.add_argument("-i", "--dpi", help="Out image DPI.", default=400, type=int)
+    p.add_argument("-p", "--path", help="Results directory.", default="results")
     return p
 
 
@@ -51,7 +49,8 @@ def _fmt_axes(fig, axs, yp=True):
 
 def _plot(
     ax, values: list, labels=None, relative=None, pattern="results/{}",
-    format=['.-', '.:', '.--', '.-.'], key="mf", legend=True, baseline=None
+    format=['.-', '.:', '.--', '.-.'], key="mf", legend=True, baseline=None,
+    n=10
 ):
     labels = values if labels is None else labels
     data = {
@@ -63,21 +62,24 @@ def _plot(
             norm = np.array(data[values[0]]["baseline_mean"])
         else:
             norm = np.array(data[relative][key]["mean"])
+        errfactor = 2 / np.sqrt(n)
     else:
         norm = 1.0
+        errfactor = 2
 
     for v, label, fmt in zip(values, labels, format):
         ax.errorbar(
             np.array(data[v]["splits"]),
             np.array(data[v][key]["mean"]) / norm,
-            yerr=np.array(data[v][key]["std"]) / norm * 2 / 5, label=label,
-            capsize=3, fmt=fmt)
+            yerr=np.array(data[v][key]["std"]) / norm * errfactor,
+            label=label, capsize=3, fmt=fmt)
 
     if baseline is not None:
         ax.errorbar(
             np.array(data[values[-1]]["splits"]),
             np.array(data[values[-1]][key]["baseline_mean"]) / norm,
-            yerr=np.array(data[values[-1]][key]["baseline_std"]) / norm,
+            yerr=np.array(
+                data[values[-1]][key]["baseline_std"]) / norm  * errfactor,
             label=baseline, capsize=3, fmt=format[-1])
 
     if legend:
@@ -117,26 +119,22 @@ class Figures:
     """Paper figures."""
 
     @staticmethod
-    def comparison(args):
-        """Baseline comparisons."""
-        figa, ax = plt.subplots(1, 1, figsize=(3, 3))
+    def components(args):
+        """Ablations on components."""
+
+        figa, ax = plt.subplots(1, 1, figsize=(4.5, 3))
         _plot(
-            ax, ["embedding/128", "linear/128", "baseline/mlp"],
+            ax, [
+                "embedding/128", "baseline/no-baseline",
+                "baseline/no-log", "baseline/no-log-no-baseline"],
             labels=[
-                "Pitot", "Linear Factorization",
-                "Single Network"])
-        ax.set_ylabel("Mean Absolute Error")
+                "Pitot", "With Log-Objective",
+                "With Baseline Residual", "Naive Formulation"],
+            relative="embedding/128")
+        ax.set_ylabel("Relative Error")
         _fmt_axes(figa, ax)
 
-        figb, ax = plt.subplots(1, 1, figsize=(3, 3))
-        _plot(
-            ax, ["embedding/128", "baseline/device_mlp"],
-            labels=["Pitot", "Per-Device"],
-            baseline="Rank 1 Baseline")
-        ax.set_ylabel("Mean Absolute Error")
-        _fmt_axes(figb, ax)
-
-        figc, ax = plt.subplots(1, 1, figsize=(3, 3))
+        figb, ax = plt.subplots(1, 1, figsize=(4.5, 3))
         _plot(
             ax, [
                 "embedding/128", "baseline/module_only",
@@ -146,11 +144,34 @@ class Figures:
                 "Platform Features Only", "No Features (Linear)"],
             relative="embedding/128")
         ax.set_ylabel("Relative Error")
+        _fmt_axes(figb, ax)
+
+        return {"components_a": figa, "components_b": figb}
+
+    @staticmethod
+    def baselines(args):
+        """Baseline comparisons."""
+        weak = ["embedding/128", "baseline/device_mlp"]
+        weak_labels = ["Pitot", "Per-Platform"]
+        strong = ["embedding/128", "baseline/mlp", "paragon/128"]
+        strong_labels = ["Pitot", "Single Network", "Paragon"]
+
+        figa, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, weak, labels=weak_labels, baseline="Linear Scaling")
+        ax.set_ylabel("Mean Absolute Error")
+        _fmt_axes(figa, ax)
+
+        figb, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, strong, labels=strong_labels)
+        ax.set_ylabel("Mean Absolute Error")
+        _fmt_axes(figb, ax)
+
+        figc, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, strong, labels=strong_labels, relative="embedding/128")
+        ax.set_ylabel("Relative Error")
         _fmt_axes(figc, ax)
 
-        return {
-            "comparisons_a": figa, "comparisons_b": figb,
-            "comparisons_c": figc}
+        return {"baselines_a": figa, "baselines_b": figb, "baselines_c": figc}
 
     @staticmethod
     def percentile(args):
@@ -208,12 +229,12 @@ class Figures:
             axs[0], [1, 2, 3, 4],
             pattern=args.path + "/interference/{}",
             labels=['$s=1$', '$s=2$', '$s=3$', '$s=4$'],
-            relative=2, format=['.-', 'x:', '.--', '.-.'], legend=False)
+            relative=2, format=['.-', 'x:', '.--', '.-.'], legend=False, n=25)
         _plot(
             axs[1], [1, 2, 3, 4],
             pattern=args.path + "/interference/{}",
             labels=['$s=1$', '$s=2$', '$s=3$', '$s=4$'],
-            relative=2, format=['.-', 'x:', '.--', '.-.'], key='if')
+            relative=2, format=['.-', 'x:', '.--', '.-.'], key='if', n=25)
 
         axs[0].set_ylabel("Relative Error")
         axs[0].set_title("Non-interference Error")
@@ -235,20 +256,22 @@ class Figures:
         names = ["Interference-Aware", "Discard", "Ignore"]
         names3 = ["Interference-Aware", "Discard", "Ignore", "SMT Disabled"]
 
-        figa, ax = plt.subplots(1, 1, figsize=(4, 3))
-        _plot(ax, methods, labels=names, key="if")
+        figa, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, methods, labels=names, key="if", n=25)
         ax.set_ylabel("Percent Error")
+        ax.set_ylim(0, 0.7)
         _fmt_axes(figa, ax)
 
-        figb, ax = plt.subplots(1, 1, figsize=(4, 3))
-        _plot(ax, methods, labels=names)
+        figb, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, methods, labels=names, n=25)
         ax.set_ylabel("Percent Error")
-        ax.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        ax.set_ylim(0, 0.7)
         _fmt_axes(figb, ax)
 
-        figc, ax = plt.subplots(1, 1, figsize=(4, 3))
-        _plot(ax, methods3, labels=names3, key="if")
+        figc, ax = plt.subplots(1, 1, figsize=(3.5, 3))
+        _plot(ax, methods3, labels=names3, key="if", n=25)
         ax.set_ylabel("Percent Error")
+        ax.set_ylim(0, 0.7)
         _fmt_axes(figc, ax)
 
         return {
@@ -260,6 +283,6 @@ def _main(args):
     for name in args.figures:
         figs = getattr(Figures, name)(args)
         for k, v in figs.items():
-            out = os.path.join(args.out, k + ".png")
+            out = os.path.join(args.out, k + ".pdf")
             print("Created:", out)
-            v.savefig(out, dpi=args.dpi)
+            v.savefig(out)

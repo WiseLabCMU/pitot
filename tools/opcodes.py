@@ -31,6 +31,8 @@ def _parse(p):
     p.add_argument(
         "-p", "--path", help="Path to dataset.", default="data/opcodes")
     p.add_argument(
+        "-m", "--matrix", help="Main matrix file.", default="matrix.npz")
+    p.add_argument(
         "-o", "--out", help="Output (base) path.", default="opcodes")
     p.add_argument(
         "-d", "--plot", help="Draw plot.", action='store_true', default=False)
@@ -39,7 +41,11 @@ def _parse(p):
 
 def _main(args):
     data, files = list(zip(*apply_recursive(args.path, _load)))
-    data = np.array(data)
+
+    target_modules = set(np.load(args.matrix)["module"])
+    mask = np.array([x in target_modules for x in files])
+    data = np.array(data)[mask]
+    files = np.array(files)[mask]
     nonzero = np.where(np.sum(data, axis=0) > 10)[0]
 
     opcodes = Index(

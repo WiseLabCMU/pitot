@@ -1,8 +1,14 @@
-"""Edge orchestration simulations."""
+from jaxtyping import install_import_hook
 
-from .network import NetworkTopology
-from .system import NetworkSimulation, Jobs
-from .orchestrator import SimulatedOrchestrator
+
+with install_import_hook("algorithms", ("beartype", "beartype")):
+    from .jobs import JobSpec, Jobs
+    from .network import NetworkTopology
+    from .system import NetworkSimulation
+    from . import algorithms
+    from .orchestrator import SimulatedOrchestrator
 
 __all__ = [
-    "NetworkSimulation", "SimulatedOrchestrator", "Jobs", "NetworkTopology"]
+    "NetworkTopology", "NetworkSimulation", "SimulatedOrchestrator",
+    "JobSpec", "Jobs", "algorithms"
+]

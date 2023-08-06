@@ -64,7 +64,7 @@ def _main(args):
         for method in methods
     }
     splits = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    fig, ax = plt.subplots(1, 1, figsize=(4, 3))
     for (k, (mean, stderr)), fmt in zip(data.items(), ['.-', '.:', '.--']):
         ax.errorbar(
             splits, mean, yerr=stderr, label=methods[k], capsize=3, fmt=fmt)
@@ -76,4 +76,4 @@ def _main(args):
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     fig.tight_layout(pad=0.5)
-    fig.savefig("figures/comparisons_d.png", dpi=400)
+    fig.savefig("figures/comparisons_c.pdf")

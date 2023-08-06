@@ -29,6 +29,7 @@ class Objective(NamedTuple):
     log: whether this objective uses log data.
     name: name of this objective.
     save: if not None, save the test predictions to this key.
+    normalize: normalize loss by magnitude.
     """
 
     x: Integer[Array, "N k"]
@@ -38,6 +39,7 @@ class Objective(NamedTuple):
     log: bool
     name: str
     save: str
+    normalize: bool = False
 
     @classmethod
     def from_config(cls, dataset: Dataset, config: dict) -> "Objective":
@@ -87,6 +89,9 @@ class Objective(NamedTuple):
         """Compute (weighted) loss from data indices."""
         if self.weight is None:
             return 0.0
+        elif self.normalize:
+            return jnp.mean(
+                jnp.square((pred - self.y[idx]) / self.y[idx])) * self.weight    
         else:
             return jnp.mean(jnp.square(pred - self.y[idx])) * self.weight
 

@@ -11,7 +11,7 @@ _desc = "Generate large matrix and side information plot."
 def _parse(p):
     p.add_argument("-p", "--path", default="data/data.npz", help="Data file.")
     p.add_argument(
-        "-o", "--out", default="data/dataset.png", help="Output file.")
+        "-o", "--out", default="data/dataset.pdf", help="Output file.")
 
 
 def _main(args):
@@ -46,4 +46,4 @@ def _main(args):
     axs[0, 1].set_yticks([])
     fig.tight_layout(h_pad=-8, w_pad=1)
 
-    fig.savefig(args.out, dpi=200)
+    fig.savefig(args.out)

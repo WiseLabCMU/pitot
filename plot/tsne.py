@@ -18,7 +18,6 @@ def _parse(p):
         "-p", "--path", help="Results directory.", default="results")
     p.add_argument(
         "-d", "--data", help="Dataset file.", default="data/data.npz")
-    p.add_argument("-i", "--dpi", help="Out image DPI.", default=400, type=int)
     return p
 
 
@@ -27,7 +26,7 @@ def _tsne(npz, key, dims=64):
     x = x.reshape(-1, x.shape[-1]).T
 
     scaled = StandardScaler().fit_transform(x)
-    reduced = PCA(n_components=dims).fit_transform(scaled)
+    reduced = PCA(n_components=dims, random_state=1).fit_transform(scaled)
     return TSNE(n_components=2, random_state=42).fit_transform(reduced)
 
 
@@ -90,22 +89,21 @@ def _plot_m_suite(ax, dataset, M):
 
     suites = {
         "cortex": 0, "mibench": 1,
-        "polybench/mini": 2, "polybench/small": 3, "polybench/medium": 4,
-        "vision": 5
+        "polybench": 2, "vision": 3, "libsodium": 4, "apps": 5
     }
     display = {
         "cortex": "Cortex",
         "mibench": "Mibench",
-        "polybench/mini": "Polybench (mini)",
-        "polybench/small": "Polybench (small)",
-        "polybench/medium": "Polybench (medium)",
-        "vision": "SDVBS"
+        "polybench": "Polybench",
+        "vision": "SDVBS",
+        "libsodium": "Libsodium",
+        "apps": "Python"
     }
 
     suite_index = np.array(
-        [suites["/".join(x.split('/')[:-1])] for x in dataset["module"]])
+        [suites[x.split('/')[0]] for x in dataset["module"]])
 
-    markers = ['.', '1', '2', '3', 'x', '+']
+    markers = ['.', '+', '1', 'x', '2', '*']
     for (k, v), m in zip(suites.items(), markers):
         ax.scatter(
             *M[suite_index == v].T, c='C{}'.format(v),
@@ -133,18 +131,18 @@ def _main(args):
     M = _tsne(data, "M", dims=64)
     P = _tsne(data, "P", dims=64)
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
     _plot_m_suite(ax, dataset, M)
     _notick(fig, ax)
-    fig.savefig(os.path.join(args.out, "tsne_a.png"))
+    fig.savefig(os.path.join(args.out, "tsne_a.pdf"))
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
     _plot_p_arch(ax, dataset, P)
     _notick(fig, ax)
-    fig.savefig(os.path.join(args.out, "tsne_b.png"))
+    fig.savefig(os.path.join(args.out, "tsne_b.pdf"))
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
     _plot_p_runtime(ax, dataset, P)
     _notick(fig, ax)
-    fig.savefig(os.path.join(args.out, "tsne_c.png"))
+    fig.savefig(os.path.join(args.out, "tsne_c.pdf"))
 

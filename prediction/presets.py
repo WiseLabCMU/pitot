@@ -12,7 +12,14 @@ DEFAULT = {
         "batch_size": 2048, "weight": 1.0, "log": True,
         "name": "mf", "save": None, "xkey": "x", "ykey": "y"
     }],
-    "training_args": {"replicates": 25, "k": 10, "do_baseline": True},
+    "training_args": {"replicates": 10, "k": 10, "do_baseline": True},
+}
+
+
+NO_LOG = {
+    ("objectives", 0, "log"): False,
+    ("objectives", 0, "normalize"): True,
+    ("model_args", "log"): False
 }
 
 
@@ -28,7 +35,7 @@ def _paragon(dim):
         ("model",): "linear",
         ("model_args",): {"dim": dim, "alpha": 0.002, "scale": 0.01},
         ("training_args", "do_baseline"): False,
-        ("objectives", 0, "log"): False
+        **NO_LOG
     }
 
 
@@ -51,12 +58,6 @@ def _if_model(s):
 
 
 PRESETS = {
-    # Log-baseline objective
-    "logbaseline/no-log-no-baseline": {
-        ("training_args", "do_baseline"): False,
-        ("objectives", 0, "log"): False},
-    "logbaseline/no-log": {("objectives", 0, "log"): False},
-    "logbaseline/no-baseline": {("objectives", 0, "log"): False},
     # Embedding Dimension
     "embedding/32": {("model_args", "layers"): [128, 32]},
     "embedding/64": {("model_args", "layers"): [128, 64]},
@@ -94,8 +95,6 @@ PRESETS = {
     "interference3/2": _if_model(2),
     "interference3/no-smt": _if_model(2),
     # Other baselines
-    "baseline/non_baseline": {
-        ("training_args", "do_baseline"): False, ("model_args", "alpha"): 1.0},
     "baseline/platform_only": {("model_args", "X_m"): None},
     "baseline/module_only": {("model_args", "X_p"): None},
     "baseline/mlp": {
@@ -108,6 +107,10 @@ PRESETS = {
         ("training_args", "k"): 5,
         ("training_args", "replicates"): 5
     },
+    "baseline/no-log-no-baseline": {
+        ("training_args", "do_baseline"): False, **NO_LOG},
+    "baseline/no-baseline": {("training_args", "do_baseline"): False},
+    "baseline/no-log": NO_LOG
 }
 
 

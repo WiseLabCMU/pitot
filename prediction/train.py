@@ -219,9 +219,11 @@ class CrossValidationTrainer:
 
         if self.do_baseline:
             mask = vmap(self.dataset.to_mask)(self.objectives[0].x[train[0]])
-            # max_iter=1000 is vastly overkill
+            # max_iter=10000 is vastly overkill
             # ... but it's cheap so why not
-            baseline = Rank1(self.dataset.data, max_iter=1000).vfit(mask)
+            baseline = Rank1(
+                self.dataset.data, max_iter=10000, log=self.dataset.log
+            ).vfit(mask)
         else:
             baseline = None
 

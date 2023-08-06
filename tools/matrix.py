@@ -71,6 +71,9 @@ def _parse(p):
             "iwasm-aot.hc-21", "iwasm-aot.hc-25", "iwasm-aot.hc-27",
             "wasmer-singlepass.hc-15", "wasmer-singlepass.hc-19"
         ])
+    p.add_argument(
+        "-c", "--mincount", default=1, type=int,
+        help="Minimum number of entries threshold in each row/column.")
     return p
 
 
@@ -113,11 +116,13 @@ def _main(args):
         rows=runtimes @ devices, cols=modules)
 
     if args.filter:
-        filter = (np.sum(matrix.data > 0, axis=1) > 0)
+        filter = (np.sum(matrix.data > 0, axis=1) >= args.mincount)
+        filter2 = (np.sum(matrix.data > 0, axis=0) >= args.mincount)
+
         for k in args.exclude:
             filter[matrix.rows[k]] = False
 
-        matrix = matrix[filter, :]
+        matrix = matrix[filter, :][:, filter2]
 
     matrix.save(args.out + ".npz", rows="platform", cols="module")
 

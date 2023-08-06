@@ -7,3 +7,5 @@ pandas==1.5.3
 scikit-learn==1.2.1
 tqdm==4.64.1
 matplotlib==3.6.2
+cvxpy
+cylp
