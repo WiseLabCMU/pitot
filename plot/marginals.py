@@ -5,6 +5,7 @@ import numpy as np
 from jax import numpy as jnp
 from jax import vmap
 from matplotlib import pyplot as plt
+import matplotlib.ticker as mtick
 
 from prediction import Dataset, Objective
 
@@ -104,6 +105,7 @@ def _main(args):
     ax.grid(axis='y')
     ax.axvline((x1[-1] + x2[0]) / 2, color='black', linewidth=0.5)
     ax.axvline((x2[-1] + x3[0]) / 2, color='black', linewidth=0.5)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     ax.set_ylabel("Mean Absolute Percent Error")
     fig.tight_layout(pad=0.5)
     fig.savefig("figures/marginals.pdf")

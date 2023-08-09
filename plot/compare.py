@@ -49,8 +49,8 @@ def _fmt_axes(fig, axs, yp=True):
 
 def _plot(
     ax, values: list, labels=None, relative=None, pattern="results/{}",
-    format=['.-', '.:', '.--', '.-.'], key="mf", legend=True, baseline=None,
-    n=10
+    format=['.-', '.:', '.--', '.-.'], key="mf", legend=True,
+    baseline=None, n=10
 ):
     labels = values if labels is None else labels
     data = {
@@ -100,14 +100,14 @@ def _plot_percentile(
     for v, label, fmt in zip(values, labels, format):
         ax.plot(
             np.array(data[v]["splits"]),
-            np.exp(-np.array(data[v][key]["percentile"])[:, p]) - 1,
+            np.exp(np.array(data[v][key]["percentile"])[:, p]) - 1,
             fmt, label=label)
 
     if baseline is not None:
         ax.plot(
-            np.array(data[values[-1]]["splits"]),
-            np.exp(-np.array(
-                data[values[-1]][key]["baseline_percentile"])[:, p]) - 1,
+            np.array(data[values[0]]["splits"]),
+            np.exp(np.array(
+                data[values[0]][key]["baseline_percentile"])[:, p]) - 1,
             format[-1], label=baseline)
 
     if legend:
@@ -176,23 +176,26 @@ class Figures:
     @staticmethod
     def percentile(args):
         """Comparison of calibration magnitude."""
-        fig, axs = plt.subplots(1, 2, figsize=(6, 3))
-        _plot_percentile(
-            axs[0], ["embedding/128", "linear/128", "baseline/mlp"], p=1,
-            labels=[
-                "Pitot", "Linear Factorization",
-                "Single Network"], legend=False)
-        _plot_percentile(
-            axs[1], ["embedding/128", "linear/128", "baseline/mlp"], p=5,
-            labels=[
-                "Pitot", "Linear Factorization",
-                "Single Network"], legend=True)
-        axs[0].set_ylabel("Calibration Margin")
-        axs[0].set_title("99% Certainty")
-        axs[1].set_title("95% Certainty")
-        _fmt_axes(fig, axs)
+        methods = ["embedding/128", "baseline/mlp", "paragon/128"]
+        labels = ["Pitot", "Single Network", "Paragon"]
 
-        return {"percentile": fig}
+        figa, axs = plt.subplots(1, 2, figsize=(6, 3))
+        _plot_percentile(axs[0], methods, p=5, labels=labels, legend=False)
+        _plot_percentile(axs[1], methods, p=95, labels=labels, legend=True)
+        axs[0].set_ylabel("Percent Error")
+        # Actual maximum value is 5.63X
+        axs[1].set_ylim(0, 2)
+        _fmt_axes(figa, axs)
+
+        figb, axs = plt.subplots(1, 2, figsize=(6, 3))
+        _plot_percentile(axs[0], methods, p=1, labels=labels, legend=False)
+        _plot_percentile(axs[1], methods, p=99, labels=labels, legend=True)
+        axs[0].set_ylabel("Percent Error")
+        # Actual maximum value is 781X
+        axs[1].set_ylim(0, 5)
+        _fmt_axes(figb, axs)
+
+        return {"percentile_a": figa, "percentile_b": figb}
 
     @staticmethod
     def ablations_mf(args):

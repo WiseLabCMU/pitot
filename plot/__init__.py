@@ -6,6 +6,7 @@ from . import figures
 from . import tsne
 from . import embedded
 from . import marginals
+from . import simulation
 
 
 commands = {
@@ -14,5 +15,6 @@ commands = {
     "figures": figures,
     "tsne": tsne,
     "embedded": embedded,
-    "marginals": marginals
+    "marginals": marginals,
+    "simulation": simulation
 }

@@ -23,11 +23,11 @@ def _parse(p):
     g.add_argument(
         "-d", "--dataset", default="data/data.npz", help="Path to dataset.")
     g.add_argument(
-        "--percentile", type=int, default=5, help="Calibration percentile.")
+        "--percentile", type=int, default=10, help="Calibration percentile.")
 
     g = p.add_argument_group("Evaluation")
     g.add_argument(
-        "-r", "--replicates", type=int, default=100,
+        "-r", "--replicates", type=int, default=25,
         help="Number of replicates to run.")
     g.add_argument("-k", "--key", default=42, type=int, help="Random key.")
     g.add_argument("-o", "--out", default="results-simulation")
