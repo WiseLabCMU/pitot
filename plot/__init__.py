@@ -4,7 +4,6 @@ from . import plot_dataset
 from . import compare
 from . import figures
 from . import tsne
-from . import embedded
 from . import marginals
 from . import simulation
 
@@ -14,7 +13,6 @@ commands = {
     "compare": compare,
     "figures": figures,
     "tsne": tsne,
-    "embedded": embedded,
     "marginals": marginals,
     "simulation": simulation
 }
