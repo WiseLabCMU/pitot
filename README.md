@@ -1,6 +1,6 @@
-# Pitot: Bytecode Runtime Prediction by Matrix Factorization
+# Pitot Bringing Runtime Prediction up to speed for WebAssembly
 
-Code and data for Pitot: Bytecode Runtime Prediction by Matrix Factorization.
+Code and data for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
 
 ***
 

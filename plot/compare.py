@@ -80,7 +80,7 @@ def _plot(
             np.array(data[values[-1]][key]["baseline_mean"]) / norm,
             yerr=np.array(
                 data[values[-1]][key]["baseline_std"]) / norm  * errfactor,
-            label=baseline, capsize=3, fmt=format[-1])
+            label=baseline, capsize=3, fmt=format[len(values)])
 
     if legend:
         ax.legend()
@@ -108,7 +108,7 @@ def _plot_percentile(
             np.array(data[values[0]]["splits"]),
             np.exp(np.array(
                 data[values[0]][key]["baseline_percentile"])[:, p]) - 1,
-            format[-1], label=baseline)
+            format[len(values)], label=baseline)
 
     if legend:
         ax.legend()
