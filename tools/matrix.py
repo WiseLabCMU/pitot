@@ -21,7 +21,8 @@ def _load(path, runtimes: dict = {}):
         print("Invalid JSON: {}".format(path))
         return None
 
-    t = np.array(data["utime"]) + np.array(data["stime"])
+    # t=0 is used as the error condition.
+    t = np.array(data["wall"])
     t = t[t > 0]
 
     # Remove containing folder (wasm/, aot/, ...) and extension (.wasm, .aot)
@@ -37,20 +38,13 @@ def _load(path, runtimes: dict = {}):
             _indices[module][argv] = len(_indices[module])
         module += "_{}".format(_indices[module][argv])
 
-    # iwasm-wali is the same as iwasm
     runtime = data["module"]["name"].split('.')[-1]
-    if runtime == "iwasm-wali":
-        runtime = "iwasm"
-
-    # manually exclude a benchmark that's causing problems
-    if module == "libsodium/ed25519_convert":
-        return None
-    if len(t) < 2:
+    if len(t) == 0:
         return None
     else:
         return {
             "device": runtimes.get(data["module"]["parent"])["name"],
-            "module": module, "runtime": runtime, "mean": np.mean(t[1:]),
+            "module": module, "runtime": runtime, "mean": np.mean(t),
         }
 
 
@@ -67,10 +61,7 @@ def _parse(p):
         help="Filter invalid devices")
     p.add_argument(
         "--exclude", nargs='+', help="Excluded devices.",
-        default=[
-            "iwasm-aot.hc-21", "iwasm-aot.hc-25", "iwasm-aot.hc-27",
-            "wasmer-singlepass.hc-15", "wasmer-singlepass.hc-19"
-        ])
+        default=["iwasm-a.hc-21", "iwasm-a.hc-25", "iwasm-a.hc-27"])
     p.add_argument(
         "-c", "--mincount", default=1, type=int,
         help="Minimum number of entries threshold in each row/column.")
@@ -120,10 +111,15 @@ def _main(args):
         filter2 = (np.sum(matrix.data > 0, axis=0) >= args.mincount)
 
         for k in args.exclude:
-            filter[matrix.rows[k]] = False
+            try:
+                filter[matrix.rows[k]] = False
+            except KeyError:
+                pass
 
         matrix = matrix[filter, :][:, filter2]
 
+    print("Created dataset: {}.npz @ {} (n={})".format(
+        args.out, matrix.data.shape, np.sum(matrix.data > 0)))
     matrix.save(args.out + ".npz", rows="platform", cols="module")
 
     if args.plot:

@@ -1,38 +1,52 @@
+# --------------------------------------------------------------------------- #
+#      Pitot: Bringing Runtime Prediction up to speed for Edge Computing      #
+# --------------------------------------------------------------------------- #
+
 .phony: typecheck figures dataset
 
-figures:
-	mkdir -p figures
-	python manage.py compare
-	python manage.py figures
-	python manage.py tsne
-	python manage.py plot_simulation
-	python manage.py embedded
+# --------------------------- Dataset Compilation --------------------------- #
 
-typecheck:
-	python -m mypy prediction
+MF_SESSIONS=$(addprefix data-raw/matrix/, $(shell ls data-raw/matrix))
 
 dataset: data/data.npz
 
-data/data.npz: data/platforms.npz data/opcodes.npz data/matrix.npz
+data:
+	mkdir -p data
+
+data/data.npz: data data/platforms.npz data/opcodes.npz data/matrix.npz
 	python manage.py merge \
 		-m data/matrix.npz -p data/opcodes.npz -t data/platforms.npz \
 		-o data/data.npz
 
-data/matrix.npz:
+data/matrix.npz: $(MF_SESSIONS)
 	python manage.py matrix -p \
-		data-raw/matrix data-raw/matrix.add0 \
-		data-raw/matrix.add1/* data-raw/data-embedded/cortex-m7.json \
-		-o data/matrix --plot --filter -c 25
+		$(MF_SESSIONS) data-raw/embedded/data.json \
+		-o data/matrix --plot --filter --mincount 25
 	
 data/opcodes.npz: data/matrix.npz
-	python manage.py opcodes -p data-raw/data-opcodes/ \
+	python manage.py opcodes -p data-raw/opcodes/ \
 		-o data/opcodes -d -m data/matrix.npz
 
 data/platforms.npz: data/matrix.npz
 	python manage.py platforms -m data/matrix.npz \
-		-p data-raw/matrix/runtimes.json data-raw/matrix.add0/runtimes.json \
-		data-raw/data-embedded/embedded.json \
+		-p data-raw/matrix/polybench/runtimes.json \
+		data-raw/embedded/manifest.json \
 		-o data/platforms -d
+
+# todo
+
+figures:
+	mkdir -p figures
+	python plot.py compare
+	python plot.py figures
+	python plot.py tsne
+	python plot.py marginals
+	python plot.py simulation
+
+
+typecheck:
+	python -m mypy prediction
+
 
 simulation:
 	python manage.py simulate -j 1000 -s 0.1
@@ -45,10 +59,3 @@ simulation:
 	python manage.py simulate -j 300 -s 0.03
 	python manage.py simulate -j 200 -s 0.02
 	python manage.py simulate -j 100 -s 0.01
-
-figures:
-	python plot.py compare
-	python plot.py figures
-	python plot.py tsne
-	python plot.py marginals
-	python plot.py simulation
