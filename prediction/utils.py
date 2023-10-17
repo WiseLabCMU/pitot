@@ -1,179 +1,77 @@
 """Miscellaneous utilities."""
 
-import os
+from functools import partial
+from jaxtyping import PyTree, Integer, Array, Num
+
+import jax
 import numpy as np
-
-from jaxtyping import Shaped
-from beartype.typing import (
-    Callable, Optional, Sequence, Union, NamedTuple, Any)
+from jax import numpy as jnp
 
 
-def apply_recursive(
-    path: str, func: Callable[[str], Optional[Any]],
-    exclude: set[str] = {"runtimes.json"}
-) -> list:
-    """Apply function recursively in file system."""
-    res = []
-    for p in os.listdir(path):
-        pp = os.path.join(path, p)
-        if os.path.isdir(pp):
-            res += apply_recursive(pp, func, exclude=exclude)
+def tree_stack(trees: list[PyTree], _np=jnp) -> PyTree:
+    """Takes a list of trees and stacks every corresponding leaf.
+
+    For example, given two trees ((a, b), c) and ((a', b'), c'), returns
+    ((stack(a, a'), stack(b, b')), stack(c, c')).
+    """
+    treedef = jax.tree_util.tree_structure(trees[0])
+    leaves = [jax.tree_util.tree_flatten(t)[0] for t in trees]
+
+    result_leaves = list(map(_np.stack, zip(*leaves)))
+    return jax.tree_util.tree_unflatten(treedef, result_leaves)
+
+
+def tree_concatenate(trees: list[PyTree]) -> PyTree:
+    """Takes a list of trees and concatenates every corresponding leaf."""
+    treedef = jax.tree_util.tree_structure(trees[0])
+    leaves = [jax.tree_util.tree_flatten(t)[0] for t in trees]
+
+    result_leaves = list(map(partial(jnp.concatenate, axis=0), zip(*leaves)))
+    return jax.tree_util.tree_unflatten(treedef, result_leaves)
+
+
+@jax.jit
+def tree_accumulate(acc: PyTree, add: PyTree, divide=1.0) -> PyTree:
+    """Accumulate tree values (JIT friendly)."""
+    return jax.tree_map(lambda x, y: x + y / divide, acc, add)
+
+
+class RangeAllocator:
+    """Helper class that keeps track of allocated indices."""
+
+    def __init__(self):
+        self.acc: int = 0
+
+    def allocate(self, *n: int) -> list[Integer[Array, "_"]]:
+        """Allocate range."""
+        res: list[Integer[Array, "_"]] = []
+        for ni in n:
+            res.append(jnp.arange(ni) + self.acc)
+            self.acc += ni
+        return res
+
+
+def dict_flatten(x: dict, prefix: list[str] = []) -> dict:
+    """Flatten dictionary with string keys to '_'-separated 'paths'."""
+    res = {}
+    for k, v in x.items():
+        if isinstance(v, dict):
+            res.update(dict_flatten(v, prefix=prefix + [k]))
         else:
-            if p not in exclude:
-                d = func(pp)
-                if d is not None:
-                    res.append(d)
+            res['_'.join(prefix + [k])] = v
     return res
 
 
-class Index:
-    """Enumerated value array indexing.
-
-    Parameters
-    ----------
-    items: indexing item names.
-    display: display names for items.
-    """
-
-    def __init__(
-        self, items: Union[Sequence, np.ndarray],
-        display: Optional[Union[Sequence, np.ndarray]] = None,
-    ) -> None:
-        self.key = np.array(items)
-        self.display = np.array(
-            items if display is None else display)
-        self.index = {n: i for i, n in enumerate(self.key)}
-
-    @classmethod
-    def from_objects(
-            cls, objs: list[dict], key: str,
-            display: Optional[Callable[[str], str]] = None):
-        """Create from list of objects.
-
-        Parameters
-        ----------
-        objs: objects (dictionaries) to create from.
-        key: attribute to fetch from each object.
-        display: function that transforms items to their final display names.
-        """
-        items = sorted(list(set([obj[key] for obj in objs])))
-        return cls(items, display=(
-            items if display is None else [display(i) for i in items]))
-
-    def __matmul__(self, B: "Index") -> "Index":
-        """Set product is denoted by A @ B."""
-        items = [".".join([a, b]) for a in self.key for b in B.key]
-        display = [
-            "{}, {}".format(a, b) for a in self.display for b in B.display]
-        return Index(items, display=display)
-
-    def __add__(self, B: "Index") -> "Index":
-        """Add index or string."""
-        return Index(
-            list(self.key) + list(B.key),
-            display=list(self.display) + list(B.display))
-
-    def __len__(self) -> int:
-        """Length indicates the set size."""
-        return len(self.key)
-
-    def __getitem__(self, key: Union[np.ndarray, slice, int, str]):
-        """Index is indexable by item index or value."""
-        if isinstance(key, np.ndarray) or isinstance(key, slice):
-            return Index(self.key[key], display=self.display[key])
-        elif isinstance(key, int):
-            return self.key[key]
-        else:
-            return self.index[key]
-
-    def set_xticks(self, ax):
-        """Set this enum as xticks."""
-        ax.set_xticks(np.arange(len(self.key)))
-        ax.set_xticklabels(self.display, rotation="vertical")
-
-    def set_yticks(self, ax):
-        """Set this enum as yticks."""
-        ax.set_yticks(np.arange(len(self.key)))
-        ax.set_yticklabels(self.display)
+def tree_size(x: PyTree) -> int:
+    """Get size (# parameters) of PyTree."""
+    return sum(v.size for v in jax.tree_util.tree_leaves(x))
 
 
-MatrixSlice = Union[slice, np.ndarray]
-
-
-class Matrix(NamedTuple):
-    """Matrix with enumerated labels.
-
-    Attributes
-    ----------
-    data: matrix
-    rows: row labels
-    cols: column labels
-    """
-
-    data: Shaped[np.ndarray, "n m"]
-    rows: Index
-    cols: Index
-
-    def plot(
-        self, ax, xlabel: bool = False, ylabel: bool = False,
-        transpose: bool = False, **kwargs
-    ) -> None:
-        """Draw plot."""
-        if transpose:
-            rows, cols = self.cols, self.rows
-            data = self.data.T
-        else:
-            rows, cols, data = self.rows, self.cols, self.data
-
-        ax.imshow(data, **kwargs)
-        if ylabel:
-            rows.set_yticks(ax)
-        else:
-            ax.set_yticks([])
-        if xlabel:
-            cols.set_xticks(ax)
-        else:
-            ax.set_xticks([])
-
-    def __getitem__(  # type: ignore
-        self, val: Union[MatrixSlice, tuple[MatrixSlice, MatrixSlice]]
-    ) -> "Matrix":
-        """Index cylinder set intersections with numpy arrays (or slices)."""
-        if isinstance(val, slice) or isinstance(val, np.ndarray):
-            val = (val, slice(None, None, None))
-        rows, cols = val
-
-        return Matrix(
-            data=self.data[rows][:, cols],
-            rows=self.rows[rows], cols=self.cols[cols])
-
-    def __matmul__(
-        self, transform: Callable[
-            [Shaped[np.ndarray, "n m"]], Shaped[np.ndarray, "n m"]]
-    ) -> "Matrix":
-        """Matrix multiplication operator denotes function composition."""
-        return Matrix(
-            data=transform(self.data), rows=self.rows, cols=self.cols)
-
-    def __add__(self, B: "Matrix") -> "Matrix":  # type: ignore
-        """Append matrix in axis 0."""
-        return Matrix(
-            data=np.concatenate([self.data, B.data], axis=0),
-            rows=self.rows + B.rows, cols=self.cols)
-
-    def save(
-        self, path: str, data: str = "data",
-        rows: str = "rows", cols: str = "cols"
-    ) -> None:
-        """Save matrix, naming keys according to parameters given."""
-        np.savez(path, **{data: self.data, rows: self.rows, cols: self.cols})
-
-    @classmethod
-    def from_npz(
-        cls, path: str, data: str = "data",
-        rows: str = "rows", cols: str = "cols"
-    ) -> "Matrix":
-        """Load from npz file with specified keys."""
-        npz = np.load(path)
-        return cls(
-            data=npz[data], rows=Index(npz[rows]), cols=Index(npz[cols]))
+def array_unpack(
+    x: Num[Array, "batch dim"], shape: tuple[int, ...]
+) -> tuple[Num[Array, "batch d1"], Num[Array, "batch ..."]]:
+    """Index entries from a batched array with a given shape."""
+    size = np.prod(shape)
+    x1 = x[:, :size]
+    x2 = x[:, size:]
+    return x2, x1.reshape(x.shape[0], *shape)

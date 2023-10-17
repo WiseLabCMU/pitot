@@ -1,121 +1,230 @@
-"""Prediction Objectives."""
+"""Matrix completion generalized objective."""
 
+from textwrap import indent
+
+import numpy as np
 from jax import numpy as jnp
+from jax import random
 
-from beartype.typing import NamedTuple, Optional, Union
-from jaxtyping import Float32, Array, Integer
+from jaxtyping import Array, UInt, Float
+from beartype.typing import NamedTuple, Iterable
 
-from .dataset import Dataset
+from . import types
 
 
-#: Matrix Factorization Predictions. Can be a matrix, array, k-fold replicates
-#: of matrix, or k-fold replicates of array.
-MFPrediction = Union[
-    Float32[Array, "n"],
-    Float32[Array, "nx ny"],
-    Float32[Array, "k nx ny"]
-]
+class Split(NamedTuple):
+    """Single training replicate splits."""
+
+    _KEYS = ["train", "val", "test"]
+
+    train: UInt[Array, "N_train"]
+    val: UInt[Array, "N_val"]
+    test: UInt[Array, "N_test"]
+
+    def as_dict(self) -> dict[str, UInt[Array, "_"]]:
+        """Convert to dictionary for savez."""
+        return {k: getattr(self, k) for k in self._KEYS}
+
+    @classmethod
+    def from_npz(
+        cls, path: str, objectives: Iterable[str] = []
+    ) -> dict[str, "Split"]:
+        """Load saved splits from npz file."""
+        npz = np.load(path)
+
+        def _load(obj):
+            args = {k: npz["{}_{}".format(obj, k)] for k in cls._KEYS}
+            return cls(**args)
+
+        return {k: _load(k) for k in objectives}
+
+    def __repr__(self):
+        """Print split sizes only."""
+        total = self.train.shape[0] + self.val.shape[0] + self.test.shape[0]
+        return (
+            "Split(n_train={} [{:.2f}%], n_val={} [{:.2f}%], n_test={} "
+            "[{:.2f}%])".format(
+                self.train.shape[0], 100 * self.train.shape[0] / total,
+                self.val.shape[0], 100 * self.val.shape[0] / total,
+                self.test.shape[0], 100 * self.test.shape[0] / total))
 
 
 class Objective(NamedTuple):
-    """Training objective.
+    """Generalized runtime matrix completion objective.
+
+    NOTE: for all dictionaries, the keys correspond to each axis in the matrix.
 
     Attributes
     ----------
-    x: input indices.
-    y: measured execution time.
-    batch_size: batch size when sampling for SGD; full batch if None.
-    weight: weight of this objective.
-    log: whether this objective uses log data.
-    name: name of this objective.
-    save: if not None, save the test predictions to this key.
-    normalize: normalize loss by magnitude.
+    indices: index of data points by axis.
+    t: observed runtime.
+    data: value of features.
+    features: correspondence between axis names and feature names.
+    weight: optimization weight of this objective.
+    batch: objective batch size for training.
+    name: friendly objective name.
     """
 
-    x: Integer[Array, "N k"]
-    y: Float32[Array, "N"]
-    batch_size: Optional[int]
-    weight: Optional[float]
-    log: bool
+    indices: dict[str, UInt[Array, "N"]]
+    data: dict[str, Float[Array, "_ _"]]
+    t: Float[Array, "N"]
+    features: dict[str, str]
+    weight: float
+    batch: int
     name: str
-    save: str
-    normalize: bool = False
 
     @classmethod
-    def from_config(cls, dataset: Dataset, config: dict) -> "Objective":
-        """Create objective from configuration.
+    def from_npz(
+        cls, *path: str, axes: dict[str, str], name: str = "Objective",
+        weight: float = 1.0, batch: int = 2048, log: bool = True
+    ) -> "Objective":
+        """Create from dataset file.
 
-        "xkey" and "ykey" attributes denote where to fetch `x` and `y` from.
+        Parameters
+        ----------
+        path: path(s) to .npz file.
+        axes: matrix completion axes; keys correspond to axis names
+            (e.g. platform, workload) and values correspond to feature names
+            (e.g. opcounts).
         """
-        x = getattr(dataset, config["xkey"])
-        y = getattr(dataset, config["ykey"])
-        kwargs = {k: v for k, v in config.items() if k not in {"xkey", "ykey"}}
-        return cls(x=x, y=y, **kwargs)
+        data = {}
+        for p in path:
+            data.update(dict(np.load(p)))
 
-    @property
-    def size(self) -> int:
-        """Dataset size."""
-        return self.y.shape[0]
+        return cls(
+            indices={k: jnp.array(data["i_{}".format(k)]) for k in axes},
+            data={
+                k: jnp.array(data["d_{}".format(v)]) for k, v in axes.items()},
+            t=jnp.log(data["t"]) if log else jnp.array(data["t"]),
+            features=axes, weight=weight, batch=batch, name=name)
 
-    @property
-    def indices(self) -> Integer[Array, "N"]:
-        """Possible data indices `y.shape[0]`."""
-        u16 = self.y.shape[0] < jnp.iinfo(jnp.uint16).max
-        return jnp.arange(
-            self.y.shape[0], dtype=jnp.uint16 if u16 else jnp.uint32)
+    def split(
+        self, key: random.PRNGKeyArray, ntrain: int = 8000, nval: int = 2000
+    ) -> Split:
+        """Create splits.
 
-    def index(  # type: ignore
-        self, pred: MFPrediction, idx: Integer[Array, "n"]
-    ) -> tuple[Float32[Array, "n"], Float32[Array, "n"]]:
-        """Index into dataset y values (and predictions).
+        Parameters
+        ----------
+        key: random seed
+        ntrain: number of training data points.
+        nval: number of validation data points.
 
-        NOTE: There's an edge case here if `len(idx) == matrix.shape[1]`.
+        Returns
+        -------
+        Train/val/test splits, with all remaining data assigned to test.
         """
-        x = self.x[idx]
-        y = self.y[idx]
+        shuffled = random.permutation(key, self.t.shape[0])
+        train = shuffled[:ntrain]
+        val = shuffled[ntrain:ntrain + nval]
+        test = shuffled[ntrain + nval:]
+        return Split(train=train, val=val, test=test)
 
-        # Index form
-        if pred.shape[-1] == idx.shape[0]:
-            if len(pred.shape) == 2:
-                pred = jnp.mean(pred, axis=0)
-            return pred, y
-        # Matrix form
-        else:
-            if len(pred.shape) == 3:
-                pred = jnp.mean(pred, axis=0)
-            return pred[x[:, 0], x[:, 1]], y
+    def index(
+        self, i: UInt[Array, "batch"]
+    ) -> types.Data:
+        """Index into dataset.
 
-    def loss(self, pred: Float32[Array, "..."], idx: Integer[Array, "n"]):
-        """Compute (weighted) loss from data indices."""
-        if self.weight is None:
-            return 0.0
-        elif self.normalize:
-            return jnp.mean(
-                jnp.square((pred - self.y[idx]) / self.y[idx])) * self.weight    
-        else:
-            return jnp.mean(jnp.square(pred - self.y[idx])) * self.weight
+        Note the dataset is only indexed one layer deep (i.e. not
+        to the actual features, but to the platform/workload index).
+        """
+        return types.Data(
+            x={k: v[i] for k, v in self.indices.items()}, y=self.t[i])
 
-    def error(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Get full prediction error."""
-        pred, actual = self.index(pred, idx)
-        return pred - actual
+    def to_matrix(self) -> Float[np.ndarray, "..."]:
+        """Arrange data into a matrix/tensor form.
 
-    def perror(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Percent error."""
-        if self.log:
-            return jnp.exp(self.error(pred, idx)) - 1
-        else:
-            pred, actual = self.index(pred, idx)
-            return (pred - actual) / actual
+        Returns
+        -------
+        Matrix with each axis in this objective as a dimension.
+        - Entries that are not observed as returned as `np.nan`.
+        - Entries that are observed multiple times may return either.
+        """
+        mat = np.full([self.data[k].shape[0] for k in self.indices], np.nan)
+        mat[tuple(self.indices.values())] = self.t
+        return mat
 
-    def rmse(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """RMSE log error."""
-        return jnp.sqrt(jnp.mean(jnp.square(self.error(pred, idx))))
+    def __repr__(self) -> str:
+        """Get descriptive name."""
+        features = ", ".join(
+            ["{}={}".format(k, v.shape) for k, v in self.data.items()])
+        return "Objective({}, N={}, {}, weight={}, batch={})".format(
+            self.name, self.t.shape[0], features, self.weight, self.batch)
 
-    def mae(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Mean absolute error."""
-        return jnp.mean(jnp.abs(self.error(pred, idx)))
 
-    def mape(self, pred: MFPrediction, idx: Integer[Array, "n"]):
-        """Mean absolute percent error."""
-        return jnp.mean(jnp.abs(self.perror(pred, idx)))
+class ObjectiveSet:
+    """Collection of objectives."""
+
+    def __init__(
+        self, objectives: dict[str, Objective],
+    ) -> None:
+        self.objectives = objectives
+        self.total_weight = sum(v.weight for v in objectives.values())
+
+    def items(self):
+        """Pass through iterator."""
+        return self.objectives.items()
+
+    def values(self):
+        """Pass through iterator."""
+        return self.objectives.values()
+
+    def index(
+        self, splits: dict[str, UInt[Array, "_"]]
+    ) -> dict[str, types.Data]:
+        """Index data splits (for val/test)."""
+        return {k: self.objectives[k].index(v) for k, v in splits.items()}
+
+    def sample(
+        self, key: random.PRNGKeyArray, splits: dict[str, UInt[Array, "_"]]
+    ) -> dict[str, types.Data]:
+        """Sample splits."""
+        kt = random.split(key, len(self.objectives))
+        batch_indices = {
+            k: random.choice(seed, splits[k], shape=(v.batch,))
+            for seed, (k, v) in zip(kt, self.objectives.items())}
+        return self.index(batch_indices)
+
+    def loss(
+        self, batch: dict[str, Float[Array, ""]],
+    ) -> Float[Array, ""]:
+        """Compute loss value."""
+        acc: Float[Array, ""] = jnp.array(0.0)
+        for k, v in batch.items():
+            acc += self.objectives[k].weight * v
+        return acc / self.total_weight
+
+    def split(
+        self, key: random.PRNGKeyArray, splits: dict[str, dict[str, int]]
+    ) -> dict[str, Split]:
+        """Create splits from size dictionary.
+
+        Parameters
+        ----------
+        key: random seed.
+        splits: 2-layer dictionary; the first layer specifies the objective,
+            and the second layer specifies train, val split sizes.
+
+        Returns
+        -------
+        Splits, organized by objective.
+        """
+        if isinstance(key, int):
+            key = random.PRNGKey(key)
+
+        seeds = random.split(key, len(splits))
+        return {
+            k: self.objectives[k].split(key=s, **v)
+            for s, (k, v) in zip(seeds, splits.items())
+        }
+
+    @classmethod
+    def from_config(cls, objectives: dict[str, dict] = {}) -> "ObjectiveSet":
+        """Create from dataset config."""
+        return ObjectiveSet({
+            k: Objective.from_npz(**v) for k, v in objectives.items()})
+
+    def __repr__(self) -> str:
+        """Get descriptive name."""
+        return "ObjectiveSet(\n{})".format(indent(
+            '\n'.join([str(obj) for obj in list(self.objectives.values())]),
+            ' ' * 4))
