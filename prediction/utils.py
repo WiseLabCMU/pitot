@@ -68,10 +68,16 @@ def tree_size(x: PyTree) -> int:
 
 
 def array_unpack(
-    x: Num[Array, "batch dim"], shape: tuple[int, ...]
-) -> tuple[Num[Array, "batch d1"], Num[Array, "batch ..."]]:
+    x: Num[Array, "batch dim"], *shape: tuple[int, ...]
+) -> list[Num[Array, "batch ..."]]:
     """Index entries from a batched array with a given shape."""
-    size = np.prod(shape)
-    x1 = x[:, :size]
-    x2 = x[:, size:]
-    return x2, x1.reshape(x.shape[0], *shape)
+    res = []
+    for s in shape:
+        size = np.prod(s)
+        x1 = x[:, :size]
+        x2 = x[:, size:]
+        res.append(x1.reshape(x.shape[0], *s))
+        x = x2
+
+    assert x.shape[1] == 0
+    return res

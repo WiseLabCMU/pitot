@@ -1,11 +1,11 @@
 """Management script dispatcher."""
 
 from argparse import ArgumentParser
-from collect import commands
+from scripts import commands
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description="Script Dispatcher.")
+    parser = ArgumentParser(description="Training and evaluation scripts.")
 
     subparsers = parser.add_subparsers()
     for name, command in commands.items():

@@ -7,7 +7,7 @@ from jax import numpy as jnp
 from jax import random
 
 from jaxtyping import Array, UInt, Float
-from beartype.typing import NamedTuple, Iterable
+from beartype.typing import NamedTuple, Iterable, Union, Optional, Tuple
 
 from . import types
 
@@ -73,9 +73,16 @@ class Objective(NamedTuple):
     batch: int
     name: str
 
+    @property
+    def shape(self, order: Optional[list[str]] = None) -> tuple[int, ...]:
+        """Get matrix shape."""
+        if order is None:
+            order = list(self.indices.keys())
+        return tuple(self.data[k].shape[0] for k in order)
+
     @classmethod
     def from_npz(
-        cls, *path: str, axes: dict[str, str], name: str = "Objective",
+        cls, *path: str, axes: dict[str, str] = {}, name: str = "Objective",
         weight: float = 1.0, batch: int = 2048, log: bool = True
     ) -> "Objective":
         """Create from dataset file.
@@ -99,7 +106,8 @@ class Objective(NamedTuple):
             features=axes, weight=weight, batch=batch, name=name)
 
     def split(
-        self, key: random.PRNGKeyArray, ntrain: int = 8000, nval: int = 2000
+        self, key: random.PRNGKeyArray,
+        train: Union[float, int] = 8000, val: Union[float, int] = 2000
     ) -> Split:
         """Create splits.
 
@@ -113,11 +121,16 @@ class Objective(NamedTuple):
         -------
         Train/val/test splits, with all remaining data assigned to test.
         """
+        if isinstance(train, float):
+            train = int(self.t.shape[0] * train)
+        if isinstance(val, float):
+            val = int(self.t.shape[0] * val)
+
         shuffled = random.permutation(key, self.t.shape[0])
-        train = shuffled[:ntrain]
-        val = shuffled[ntrain:ntrain + nval]
-        test = shuffled[ntrain + nval:]
-        return Split(train=train, val=val, test=test)
+        itrain = shuffled[:train]
+        ival = shuffled[train:train + val]
+        itest = shuffled[train + val:]
+        return Split(train=itrain, val=ival, test=itest)
 
     def index(
         self, i: UInt[Array, "batch"]
@@ -130,8 +143,14 @@ class Objective(NamedTuple):
         return types.Data(
             x={k: v[i] for k, v in self.indices.items()}, y=self.t[i])
 
-    def to_matrix(self) -> Float[np.ndarray, "..."]:
+    def to_matrix(
+        self, order: Optional[list[str]] = None
+    ) -> Float[np.ndarray, "..."]:
         """Arrange data into a matrix/tensor form.
+
+        Parameters
+        ----------
+        order: optional axis order. If None, uses the indices iteration order.
 
         Returns
         -------
@@ -139,8 +158,10 @@ class Objective(NamedTuple):
         - Entries that are not observed as returned as `np.nan`.
         - Entries that are observed multiple times may return either.
         """
-        mat = np.full([self.data[k].shape[0] for k in self.indices], np.nan)
-        mat[tuple(self.indices.values())] = self.t
+        if order is None:
+            order = list(self.indices.keys())
+        mat = np.full([self.data[k].shape[0] for k in order], np.nan)
+        mat[tuple(order)] = self.t
         return mat
 
     def __repr__(self) -> str:
@@ -159,6 +180,10 @@ class ObjectiveSet:
     ) -> None:
         self.objectives = objectives
         self.total_weight = sum(v.weight for v in objectives.values())
+
+    def __getitem__(self, key: str) -> Objective:
+        """Shortcut for `ObjectiveSet.objectives[key]`."""
+        return self.objectives[key]
 
     def items(self):
         """Pass through iterator."""
@@ -194,7 +219,8 @@ class ObjectiveSet:
         return acc / self.total_weight
 
     def split(
-        self, key: random.PRNGKeyArray, splits: dict[str, dict[str, int]]
+        self, key: random.PRNGKeyArray,
+        splits: dict[str, dict[str, Union[float, int]]]
     ) -> dict[str, Split]:
         """Create splits from size dictionary.
 
@@ -220,8 +246,11 @@ class ObjectiveSet:
     @classmethod
     def from_config(cls, objectives: dict[str, dict] = {}) -> "ObjectiveSet":
         """Create from dataset config."""
-        return ObjectiveSet({
-            k: Objective.from_npz(**v) for k, v in objectives.items()})
+        def _inner(cfg):
+            return Objective.from_npz(
+                *cfg["path"], **{k: v for k, v in cfg.items() if k != "path"})
+
+        return ObjectiveSet({k: _inner(v) for k, v in objectives.items()})
 
     def __repr__(self) -> str:
         """Get descriptive name."""

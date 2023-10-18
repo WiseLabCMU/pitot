@@ -2,6 +2,7 @@
 
 from jax import numpy as jnp
 from jaxtyping import Array, Float32
+from beartype.typing import Optional, Union, Sequence
 
 
 class Loss:
@@ -81,10 +82,14 @@ class Pinball(Loss):
     """
 
     def __init__(
-        self, alpha: Float32[Array, "n"], weight: Float32[Array, "n"]
+        self, alpha: Float32[Array, "n"],
+        weight: Optional[Float32[Array, "n"]] = None
     ) -> None:
         if isinstance(alpha, float):
             alpha = jnp.array([alpha], dtype=jnp.float32)
+        if weight is None:
+            weight = jnp.ones(alpha.shape[0]) / alpha.shape[0]
+
         self.alpha = alpha
         self.weight = weight
         self.N = alpha.shape[0]
@@ -100,7 +105,9 @@ class Pinball(Loss):
             +   (self.alpha[None, :]) *   err  * (err >= 0))
 
     @classmethod
-    def from_config(cls, quantiles: list[float] = [90, 95, 99]) -> "Loss":
+    def from_config(
+        cls, quantiles: Sequence[Union[int, float]] = [90, 95, 99]
+    ) -> "Loss":
         """Create from configuration."""
         return cls(
             alpha=1 - jnp.array(quantiles) / 100,

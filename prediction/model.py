@@ -34,13 +34,17 @@ class MatrixCompletionModel:
         self.step = jax.jit(self._step)
         self.val = jax.jit(self._val)
 
-    def _init(self, key: random.PRNGKeyArray) -> PyTree:
+    def _init(
+        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+    ) -> PyTree:
         """Get model parameters."""
         raise NotImplementedError()
 
-    def init(self, key: random.PRNGKeyArray) -> types.TrainState:
+    def init(
+        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+    ) -> types.TrainState:
         """Get model initialization."""
-        params = self._init(key)
+        params = self._init(key, splits)
         opt_state = self.optimizer.init(params)
         return types.TrainState(params, opt_state)
 
@@ -149,7 +153,7 @@ class MatrixCompletionModel:
         """
         if state is None:
             key, _k = random.split(key)
-            state = self.init(_k)
+            state = self.init(_k, splits)
 
         train = {k: v.train for k, v in splits.items()}
         val = {k: v.val for k, v in splits.items()}
@@ -170,7 +174,7 @@ class MatrixCompletionModel:
 
     @classmethod
     def from_config(
-        cls, objectives: ObjectiveSet, losses: Loss, *kwargs
+        cls, objectives: ObjectiveSet, **kwargs
     ) -> "MatrixCompletionModel":
         """Create from configuration."""
         raise NotImplementedError()

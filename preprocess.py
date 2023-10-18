@@ -1,16 +1,16 @@
 """Management script dispatcher."""
 
 from argparse import ArgumentParser
-from plot import commands
+from preprocess import commands
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description="Script Dispatcher.")
+    parser = ArgumentParser(description="Data processing scripts.")
 
     subparsers = parser.add_subparsers()
     for name, command in commands.items():
         p = subparsers.add_parser(
-            name, help=command._desc, description=command._desc)
+            name, help=command.__doc__, description=command.__doc__)
         command._parse(p)
         p.set_defaults(_func=command._main)
 
