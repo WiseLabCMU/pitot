@@ -1,4 +1,14 @@
-"""Program runtime prediction library."""
+r"""Program runtime prediction library.
+
+    __________________      _____
+    ___  __ \__(_)_  /________  /_
+    __  /_/ /_  /_  __/  __ \  __/
+    _  ____/_  / / /_ / /_/ / /_
+    /_/     /_/  \__/ \____/\__/
+    Bringing Runtime Prediction
+    up to speed for Edge Systems
+.
+"""
 
 from . import embeddings, loss
 from .model import MatrixCompletionModel
@@ -7,12 +17,8 @@ from . import types, utils
 from . import calibrate
 
 __all__ = [
-    # Method components
     "embeddings", "loss", "calibrate",
-    # Training
     "Split", "Objective", "ObjectiveSet",
-    # Base class
     "MatrixCompletionModel",
-    # Utils
     "types", "utils",
 ]

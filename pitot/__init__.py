@@ -1,4 +1,14 @@
-"""Pitot methods."""
+r"""Pitot: method and baselines.
+
+    __________________      _____
+    ___  __ \__(_)_  /________  /_
+    __  /_/ /_  /_  __/  __ \  __/
+    _  ____/_  / / /_ / /_/ / /_
+    /_/     /_/  \__/ \____/\__/
+    Bringing Runtime Prediction
+    up to speed for Edge Systems
+.
+"""
 
 from . import presets
 from .pitot import Pitot
@@ -11,7 +21,7 @@ from .linear_scaling import (
 
 __all__ = [
     "presets",
-    "Pitot", "PitotIgnore",
+    "Pitot", "PitotIgnore", "Monolith", "Attention",
     "LinearScaling", "LinearScalingProblem", "LinearScalingSolution"
 ]
 

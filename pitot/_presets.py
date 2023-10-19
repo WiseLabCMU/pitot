@@ -118,11 +118,11 @@ PRESETS = {
     # -- Baselines ------------------------------------------------------------
     # baseline/pitot == pitot
     "baseline/factorization": {
-        **_NOINTERFERENCE, **_NOPLATFORM,
-        **_NOWORKLOAD, **_if_weight(0.0)},
+        **_NOINTERFERENCE, **_NOPLATFORM,                        # type: ignore
+        **_NOWORKLOAD, **_if_weight(0.0)},                       # type: ignore
     "baseline/monolith": {
         ("model",): "Monolith",
-        ("model_args",): {"layers": [256, 256], **_DEFAULT_OPT}
+        ("model_args",): {"layers": [256, 256], **_DEFAULT_OPT}  # type: ignore
     },
     "baseline/attention": {
         ("model",): "Attention",

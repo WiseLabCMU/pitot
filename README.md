@@ -1,39 +1,72 @@
-# Pitot Bringing Runtime Prediction up to speed for WebAssembly
+# Pitot: Bringing Runtime Prediction up to speed for WebAssembly
 
-Code and data for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
-
-***
-
-Please note that our code base is optimized for cross-validation and replicate batching on relatively small datasets, and will be highly inefficient for one-off training or significantly larger datasets. In particular, we trade off memory usage and complexity (both time/space) for higher GPU utilization and overall better performance, but only when training hundreds of replicates simultaneously on datasets of similar size to ours. Training with a small number of replicates suffers from high overhead and low GPU utilization, while training on significantly larger datasets will suffer from memory exhaustion and disproportionately higher compute usage.
+Code and dataset for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
 
 ## Setup
 
-Our experiments were run on Python 3.10, though any Python version supporting type checking by beartype and jaxtyping (3.7+) should work.
+Our experiments were run on Python 3.11, though any Python version supporting type checking by beartype and jaxtyping (3.7+) should work.
 
-**NOTE**: assuming you want to use a GPU, you will need to [install JAX](https://github.com/google/jax#installation) with a version that matches your CUDA and CuDNN version.
+**NOTE**: assuming you want to use a GPU, you will need to [install JAX](https://github.com/google/jax#installation) with a version that matches your CUDA and CuDNN version. Since JAX can't be installed automatically with GPU support, it is not included in `requirements.txt`.
 
 ```sh
 pip install -r requirements.txt
 ```
 
-**Anonymous OSF Repository**: download and extract the `pitot.zip` repository folder. Then, download `data.zip`, and extract into the repository code folder `pitot/`.
+If you would like to use the exact versions of each dependency that we used, please use
+```sh
+pip install -r requirements-pinned.txt
+```
 
-Our WASM benchmarks are also included in `benchmarks.zip`. Our benchmarking, cluster management, and edge orchestration system cannot be easily anonymized and submitted via file upload, but will be referenced here at publication.
+Our environment runs nvidia driver `535.113.01` and CUDA `11.8.89`.
+
+## Repository Structure
+
+Python modules:
+- `prediction`: core *resuable* library runtime prediction functionality.
+- `pitot`: implementation of *pitot* and other baselines shown in our paper.
+- Core python code is type-annotated wherever possible, and can be statically typechecked with mypy.
+
+Scripts:
+- `preprocess.py` / `preprocess`: data preprocessing steps to turn raw data into `.npz` dataset files.
+- `manage.py` / `scripts`: main split, training, and evaluation scripts.
+- `plot.py` / `plot`: scripts for drawing the figures shown in the paper.
+
+Data files:
+- `data`: after unzipping `data.tar`, the resulting `data` folder should be placed in the repository directory.
+- `splits`: this directory is created by `make splits`. To make sure that you use the same data splits (even with RNG changes or other code changes), you can download the supplied `splits.tar` file and extract it here.
+
+Result files:
+- `results`: outputs of each experiment are saved here. Has the following structure:
+    ```sh
+    results/
+        method/path/     # can be an arbitrary number of levels
+            config.json  # configuration parameters used for training
+            0.1/         # data split size
+                0.npz    # training log for replicate 0
+                0.pkl    # weights for replicate 0
+                ...
+            ...
+        ...
+    ```
+- `summary`: output of method evaluation.
+    - Each `results/method/path/` is turned into one `summary/method/path.npz`.
+    - Entries are stacked with data split size as the first axis and the replicate as the second axis (on top of any remaining axes, e.g. target quantile)
 
 ## Experiments
 
-All of our experiments and figures are fully deterministic, and use the default random seed (42) provided.
-
-To run our experiments used in the paper:
+To replicate the experiments shown in the paper:
 ```sh
-python manage.py experiments embedding/* features/* linear/128 paragon/128 baseline/*
-python manage.py experiments interference/* -d data/data.if.npz
-python manage.py experiments interference3/discard interference3/ignore interference3/2 -d data/data.if3.npz
-python manage.py experiments interference3/no-smt -d data/data.if3.mc.npz
-make simulation
+make experiments
 ```
+- Should take ~5 hours on a RTX 4090 / 7950X; your mileage may vary.
 
-To draw the figures:
 ```sh
-make figures
+make evaluate -j16
 ```
+- Change `-j` based on your CPU; should take a few minutes.
+- Each evaluation runs CPU-only (evaluation is mostly data marshalling), so the only practical limit on concurrency is total memory.
+
+```sh
+make alias
+```
+- To save training time, duplicated entries are provided logically via symlinks.

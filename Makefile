@@ -1,10 +1,22 @@
-# --------------------------------------------------------------------------- #
-#      Pitot: Bringing Runtime Prediction up to speed for Edge Computing      #
-# --------------------------------------------------------------------------- #
+#   __________________      _____ 
+#   ___  __ \__(_)_  /________  /_
+#   __  /_/ /_  /_  __/  __ \  __/
+#   _  ____/_  / / /_ / /_/ / /_  
+#   /_/     /_/  \__/ \____/\__/
+#   Bringing Runtime Prediction
+#   up to speed for Edge Systems
+#
 
+# -- Type checking ------------------------------------------------------------
 
+.phony: typecheck
+typecheck:
+	python -m mypy prediction
+	python -m mypy pitot
+	python -m mypy preprocess
+	python -m mypy scripts
 
-# -- Data Processing ----------------------------------------------------------
+# -- Data processing ----------------------------------------------------------
 
 PRE=python preprocess.py
 
@@ -43,29 +55,33 @@ data/if4.npz: data/data.npz
 	$(PRE) interference -s $(IF4_SESSIONS) -d data/data.npz -o data/if4.npz
 
 
-# -- Train/Val/Test Splits ----------------------------------------------------
+# -- Run experiments ----------------------------------------------------------
 
 splits: scripts/split.py
 	python manage.py split --seed 42 --replicates 5
 
+.phony: experiments
+experiments: splits
+	python manage.py train
 
-# -- Evaluation Statistics ----------------------------------------------------
+# -- Evaluation statistics ----------------------------------------------------
 
 RESULTS=$(shell find results -name 'config.json' | xargs dirname)
 SUMMARIES=$(RESULTS:results/%=summary/%.npz)
 
-.phony: evaluate aliases
+.phony: evaluate
 evaluate: $(SUMMARIES)
 
 summary/%.npz: results/%
-	JAX_PLATFORM_NAME=cpu python manage.py evaluate -p $<
+	-JAX_PLATFORM_NAME=cpu python manage.py evaluate -p $<
 
-aliases:
-	cd summary/embedding; ln -sf ../pitot.npz 32.npz
-	cd summary/learned; ln -sf ../pitot.npz 4.npz
-	cd summary/interference; ln -sf ../pitot.npz 2.npz
-	cd summary/weight; ln -sf ../pitot.npz 0.5.npz
-	cd summary/features; ln -sf ../pitot.npz all.npz
-	cd summary/components; ln -sf ../pitot.npz full.npz
-	cd summary/conformal; ln -sf ../pitot.npz nonquantile.npz
-	cd summary/baseline; ln -sf ../pitot.npz pitot.npz
+.phony: alias
+alias:
+	-cd summary/embedding && ln -sf ../pitot.npz 32.npz
+	-cd summary/learned && ln -sf ../pitot.npz 4.npz
+	-cd summary/interference && ln -sf ../pitot.npz 2.npz
+	-cd summary/weight && ln -sf ../pitot.npz 0.5.npz
+	-cd summary/features && ln -sf ../pitot.npz all.npz
+	-cd summary/components && ln -sf ../pitot.npz full.npz
+	-cd summary/conformal && ln -sf ../pitot.npz nonquantile.npz
+	-cd summary/baseline && ln -sf ../pitot.npz pitot.npz
