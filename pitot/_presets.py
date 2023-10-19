@@ -17,6 +17,14 @@ def _if_weight(w):
     }
 
 
+# Default optimizer
+_DEFAULT_OPT = {
+    "loss_class": "Squared",
+    "loss_args": {},
+    "optimizer": "adamaxw",
+    "optimizer_args": {"learning_rate": 0.001, "b1": 0.9, "b2": 0.999}
+}
+
 # Use percent error loss instead of log loss
 _NOLOG = {
     ("objectives", "mf", "log"): False,
@@ -48,12 +56,9 @@ _NOINTERFERENCE = {
         "platform_args": {"learned_features": 4, "layers": [128, 128]},
         "workload_embedding": "HybridEmbedding",
         "workload_args": {"learned_features": 4, "layers": [128, 128]},
-        "loss_class": "Squared",
-        "loss_args": {},
-        "optimizer": "adamaxw",
-        "optimizer_args": {"learning_rate": 0.001, "b1": 0.9, "b2": 0.999},
         "mf_dim": 32,
-        "do_baseline": True
+        "do_baseline": True,
+        **_DEFAULT_OPT
     }
 }
 
@@ -76,12 +81,12 @@ PRESETS = {
     "embedding/64": {("model_args", "mf_dim"): 64},
     "embedding/128": {("model_args", "mf_dim"): 128},
     # -- Ablations: learned features ------------------------------------------
-    "features/0": _learned_features(0),
-    "features/1": _learned_features(1),
-    "features/2": _learned_features(2),
-    # features/4 == pitot
-    "features/8": _learned_features(8),
-    "features/16": _learned_features(16),
+    "learned/0": _learned_features(0),
+    "learned/1": _learned_features(1),
+    "learned/2": _learned_features(2),
+    # learned/4 == pitot
+    "learned/8": _learned_features(8),
+    "learned/16": _learned_features(16),
     # -- Ablations: interference types ----------------------------------------
     "interference/1": {("model_args", "if_dim"): 1},
     # interference/2 == pitot
@@ -91,10 +96,11 @@ PRESETS = {
     # -- Ablations: objective weight ------------------------------------------
     "weight/0.1": _if_weight(0.1 / 3),
     "weight/0.2": _if_weight(0.2 / 3),
-    "weight/0.5": _if_weight(0.5 / 3),
+    # weight/0.5 == pitot
     "weight/1.0": _if_weight(1.0 / 3),
     "weight/2.0": _if_weight(2.0 / 3),
     # -- Ablations: side information ------------------------------------------
+    # features/all == pitot
     "features/noworkload": _NOWORKLOAD,
     "features/noplatform": _NOPLATFORM,
     "features/blackbox": {**_NOPLATFORM, **_NOWORKLOAD},
@@ -104,24 +110,25 @@ PRESETS = {
     "components/naiveloss": _NOLOG,
     "components/discard": {**_NOINTERFERENCE, **_if_weight(0.0)},
     "components/ignore": _NOINTERFERENCE,
+    "components/notrectified": {("model_args", "if_slope"): 1.0},
     # -- Ablations: conformal regression --------------------------------------
     # conformal/nonquantile == pitot
     "conformal/naive": _quantile([90, 91, 92, 93, 94, 95, 96, 97, 98, 99]),
     "conformal/optimal": _quantile([50, 60, 70, 80, 90, 95, 98, 99]),
     # -- Baselines ------------------------------------------------------------
+    # baseline/pitot == pitot
+    "baseline/factorization": {
+        **_NOINTERFERENCE, **_NOPLATFORM,
+        **_NOWORKLOAD, **_if_weight(0.0)},
     "baseline/monolith": {
         ("model",): "Monolith",
-        ("model_args",): {
-            "layers": [256, 256],
-            "loss_class": "Squared",
-            "loss_args": {},
-            "optimizer": "adamaxw",
-            "optimizer_args": {"learning_rate": 0.001, "b1": 0.9, "b2": 0.999}}
+        ("model_args",): {"layers": [256, 256], **_DEFAULT_OPT}
     },
     "baseline/attention": {
         ("model",): "Attention",
         ("model_args",): {
             "embedding_layers": [256, 256], "output_layers": [32],
-            "attention_dim": 32, "value_dim": 32}
+            "attention_dim": 8, "value_dim": 8,
+            **_DEFAULT_OPT}
     }
 }

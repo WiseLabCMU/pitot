@@ -2,7 +2,6 @@
 #      Pitot: Bringing Runtime Prediction up to speed for Edge Computing      #
 # --------------------------------------------------------------------------- #
 
-.phony: dataset
 
 
 # -- Data Processing ----------------------------------------------------------
@@ -14,6 +13,7 @@ IF2_SESSIONS=$(addprefix data-raw/if2/, $(shell ls data-raw/if2))
 IF3_SESSIONS=$(addprefix data-raw/if3/, $(shell ls data-raw/if3))
 IF4_SESSIONS=$(addprefix data-raw/if4/, $(shell ls data-raw/if4))
 
+.phony: dataset
 dataset: data/data.npz data/if2.npz data/if3.npz data/if4.npz
 
 data:
@@ -51,4 +51,21 @@ splits: scripts/split.py
 
 # -- Evaluation Statistics ----------------------------------------------------
 
-# for i in `find results -name '*config.json' | xargs dirname`; do python manage.py evaluate -p $i; done`
+RESULTS=$(shell find results -name 'config.json' | xargs dirname)
+SUMMARIES=$(RESULTS:results/%=summary/%.npz)
+
+.phony: evaluate aliases
+evaluate: $(SUMMARIES)
+
+summary/%.npz: results/%
+	JAX_PLATFORM_NAME=cpu python manage.py evaluate -p $<
+
+aliases:
+	cd summary/embedding; ln -sf ../pitot.npz 32.npz
+	cd summary/learned; ln -sf ../pitot.npz 4.npz
+	cd summary/interference; ln -sf ../pitot.npz 2.npz
+	cd summary/weight; ln -sf ../pitot.npz 0.5.npz
+	cd summary/features; ln -sf ../pitot.npz all.npz
+	cd summary/components; ln -sf ../pitot.npz full.npz
+	cd summary/conformal; ln -sf ../pitot.npz nonquantile.npz
+	cd summary/baseline; ln -sf ../pitot.npz pitot.npz

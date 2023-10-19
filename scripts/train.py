@@ -24,6 +24,9 @@ def _parse(p):
         "-d", "--presets", default=False, action='store_true',
         help="Show all preset information instead of training.")
     p.add_argument(
+        "-l", "--list", default=False, action='store_true', 
+        help="List available (matching) presets.")
+    p.add_argument(
         "-s", "--splits", default="splits", help="Data splits directory.")
     return p
 
@@ -88,6 +91,9 @@ def _main(args):
     if args.presets:
         subset = {p: presets.PRESETS[p] for p in presets.match(args.preset)}
         pprint.pprint(subset)
+        exit(0)
+    if args.list:
+        print("\n".join(presets.match(args.preset)))
         exit(0)
 
     matches = presets.match(args.preset)

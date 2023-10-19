@@ -33,9 +33,9 @@ _OBJECTIVES = {
 
 _DEFAULT_MODEL = {
     "platform_embedding": "HybridEmbedding",
-    "platform_args": {"learned_features": 4, "layers": [128, 128]},
+    "platform_args": {"learned_features": 1, "layers": [128, 128]},
     "workload_embedding": "HybridEmbedding",
-    "workload_args": {"learned_features": 4, "layers": [128, 128]},
+    "workload_args": {"learned_features": 1, "layers": [128, 128]},
     "loss_class": "Squared",
     "loss_args": {},
     "optimizer": "adamaxw",

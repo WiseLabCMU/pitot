@@ -1,4 +1,7 @@
-"""Evaluate model."""
+"""Evaluate model.
+
+NOTE: is generally faster to run CPU-only.
+"""
 
 import os
 import pickle
