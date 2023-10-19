@@ -2,7 +2,7 @@
 
 import json
 import os
-from beartype.typing import Callable, Optional, Any
+from beartype.typing import Callable, Optional, Any, Union
 
 
 WORKLOAD_PATTERNS = {
@@ -19,7 +19,7 @@ def platform_name(device: str, runtime: str) -> str:
     return ":".join([runtime, device])
 
 
-def workload_name(meta: dict) -> str:
+def workload_name(meta: Union[str, dict]) -> str:
     """Workload name string representation."""
     if isinstance(meta, str):
         name = meta

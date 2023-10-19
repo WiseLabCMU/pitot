@@ -4,7 +4,8 @@
 
 .phony: dataset
 
-# ----------------------------- Data Processing ----------------------------- #
+
+# -- Data Processing ----------------------------------------------------------
 
 PRE=python preprocess.py
 
@@ -42,7 +43,12 @@ data/if4.npz: data/data.npz
 	$(PRE) interference -s $(IF4_SESSIONS) -d data/data.npz -o data/if4.npz
 
 
-# -------------------------- Train/Val/Test Splits -------------------------- #
+# -- Train/Val/Test Splits ----------------------------------------------------
 
 splits: scripts/split.py
 	python manage.py split --seed 42 --replicates 5
+
+
+# -- Evaluation Statistics ----------------------------------------------------
+
+# for i in `find results -name '*config.json' | xargs dirname`; do python manage.py evaluate -p $i; done`

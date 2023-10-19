@@ -1,8 +1,9 @@
 """Train/eval scripts."""
 
-from . import split, train
+from . import split, train, evaluate
 
 commands = {
     "split": split,
-    "train": train
+    "train": train,
+    "evaluate": evaluate
 }

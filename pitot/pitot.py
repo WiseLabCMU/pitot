@@ -67,7 +67,7 @@ class Pitot(MatrixCompletionModel):
                 jnp.concatenate([splits['mf'].train, splits['mf'].val]))
             baseline = LinearScaling(
                 shape=cast(tuple[int, int], self.objectives["mf"].shape),
-                init_val=0., max_iter=10000, tol=1e-5
+                init_val=0., max_iter=20000, tol=1e-4
             ).fit(data)
         else:
             baseline = None
@@ -125,7 +125,7 @@ class Pitot(MatrixCompletionModel):
             for k in xy.x:
                 if k.startswith('interference'):
                     M += jnp.sum(
-                        Xw[iw, :, None, :] * Vg[xy.x[k], None, :, :], axis=-1)       
+                        Xw[iw, :, None, :] * Vg[xy.x[k], None, :, :], axis=-1)
             if self.if_slope == 1.0:
                 # Slope = 1  -->  same as no activation. Skip to be safe.
                 M_rect = M

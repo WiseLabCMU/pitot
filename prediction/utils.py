@@ -1,6 +1,7 @@
 """Miscellaneous utilities."""
 
 from functools import partial
+from beartype.typing import Any
 from jaxtyping import PyTree, Integer, Array, Num
 
 import jax
@@ -8,7 +9,7 @@ import numpy as np
 from jax import numpy as jnp
 
 
-def tree_stack(trees: list[PyTree], _np=jnp) -> PyTree:
+def tree_stack(trees: list[PyTree], _np: Any = jnp) -> PyTree:
     """Takes a list of trees and stacks every corresponding leaf.
 
     For example, given two trees ((a, b), c) and ((a', b'), c'), returns

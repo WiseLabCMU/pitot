@@ -49,6 +49,11 @@ class PercentError(Loss):
         """Get descriptive name."""
         return "PercentError(log={})".format(self.log)
 
+    @classmethod
+    def from_config(cls, log: bool = True) -> "PercentError":
+        """Create from configuration."""
+        return cls(log=log)
+
 
 class Squared(Loss):
     """Generic l2 loss."""

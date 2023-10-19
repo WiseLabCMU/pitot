@@ -7,7 +7,7 @@ from jax import numpy as jnp
 from jax import random
 
 from jaxtyping import Array, UInt, Float
-from beartype.typing import NamedTuple, Iterable, Union, Optional, Tuple
+from beartype.typing import NamedTuple, Iterable, Union, Optional
 
 from . import types
 
@@ -15,15 +15,13 @@ from . import types
 class Split(NamedTuple):
     """Single training replicate splits."""
 
-    _KEYS = ["train", "val", "test"]
-
     train: UInt[Array, "N_train"]
     val: UInt[Array, "N_val"]
     test: UInt[Array, "N_test"]
 
     def as_dict(self) -> dict[str, UInt[Array, "_"]]:
         """Convert to dictionary for savez."""
-        return {k: getattr(self, k) for k in self._KEYS}
+        return {k: getattr(self, k) for k in ["train", "val", "test"]}
 
     @classmethod
     def from_npz(
@@ -33,7 +31,9 @@ class Split(NamedTuple):
         npz = np.load(path)
 
         def _load(obj):
-            args = {k: npz["{}_{}".format(obj, k)] for k in cls._KEYS}
+            args = {
+                k: npz["{}_{}".format(obj, k)]
+                for k in ["train", "val", "test"]}
             return cls(**args)
 
         return {k: _load(k) for k in objectives}
@@ -132,7 +132,7 @@ class Objective(NamedTuple):
         itest = shuffled[train + val:]
         return Split(train=itrain, val=ival, test=itest)
 
-    def index(
+    def index(  # type: ignore
         self, i: UInt[Array, "batch"]
     ) -> types.Data:
         """Index into dataset.

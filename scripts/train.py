@@ -6,6 +6,7 @@ import json
 import pprint
 from tqdm import tqdm
 from functools import partial
+import time
 
 import numpy as np
 from jax import random, clear_caches
@@ -29,8 +30,10 @@ def _parse(p):
 
 def _train(seed, method, cfg, splits_path, out_path, tqdm):
     splits = Split.from_npz(splits_path, method.objectives.objectives)
+    start = time.perf_counter()
     state, log = method.train(
         key=seed, splits=splits, tqdm=tqdm, **cfg["training_args"])
+    log["time"] = time.perf_counter() - start
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path + ".pkl", "wb") as f:

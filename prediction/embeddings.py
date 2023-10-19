@@ -29,10 +29,10 @@ class BaseEmbedding(hk.Module):
         raise NotImplementedError()
 
     @classmethod
-    def from_config(cls, **kwargs) -> Callable[..., "BaseEmbedding"]:
+    def from_config(cls, *args, **kwargs) -> Callable[..., "BaseEmbedding"]:
         """Bind configuration parameters."""
         def _model(*a, **k) -> "BaseEmbedding":
-            return cls(*a, **k, **kwargs)  # type: ignore
+            return cls(*a, *args, **k, **kwargs)  # type: ignore
 
         return _model
 

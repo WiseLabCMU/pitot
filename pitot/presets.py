@@ -1,6 +1,8 @@
-"""Configuration presets."""
+"""Configuration defaults and preset management."""
 
 import copy
+
+from ._presets import PRESETS
 
 
 _OBJECTIVES = {
@@ -13,20 +15,20 @@ _OBJECTIVES = {
         "axes": {
             "platform": "platform", "workload": "workload",
             "interference0": "workload"},
-        "batch": 512, "log": True, "weight": 0.5},
+        "batch": 512, "log": True, "weight": 0.5 / 3},
     "if3": {
         "path": ["data/data.npz", "data/if3.npz"],
         "axes": {
             "platform": "platform", "workload": "workload",
             "interference0": "workload", "interference1": "workload"},
-        "batch": 512, "log": True, "weight": 0.5},
+        "batch": 512, "log": True, "weight": 0.5 / 3},
     "if4": {
         "path": ["data/data.npz", "data/if4.npz"],
         "axes": {
             "platform": "platform", "workload": "workload",
             "interference0": "workload", "interference1": "workload",
             "interference2": "workload"},
-        "batch": 512, "log": True, "weight": 0.5}
+        "batch": 512, "log": True, "weight": 0.5 / 3}
 }
 
 _DEFAULT_MODEL = {
@@ -38,10 +40,10 @@ _DEFAULT_MODEL = {
     "loss_args": {},
     "optimizer": "adamaxw",
     "optimizer_args": {"learning_rate": 0.001, "b1": 0.9, "b2": 0.999},
-    "mf_dim": 64,
-    "if_dim": 32,
+    "mf_dim": 32,
+    "if_dim": 2,
     "if_slope": 0.1,
-    "do_baseline": False
+    "do_baseline": True
 }
 
 DEFAULT = {
@@ -50,22 +52,6 @@ DEFAULT = {
     "model_args": _DEFAULT_MODEL,
     "training_args": {"steps": 20000, "val_every": 200},
     "seed": 42
-}
-
-_QUANTILE = {
-    ("model", "loss_class"): "Pinball",
-    ("model", "loss_args"): {"quantiles": [50, 60, 70, 80, 90, 95, 98, 99]}
-}
-
-_IF_IGNORE = {
-    ("if2", "weight"): 0.0,
-    ("if3", "weight"): 0.0,
-    ("if4", "weight"): 0.0
-}
-
-PRESETS = {
-    "pitot-scr": {},
-    "pitot-cqr": _QUANTILE,
 }
 
 

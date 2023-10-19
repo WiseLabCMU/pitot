@@ -1,7 +1,8 @@
 # Data / results
 results*/
+splits/
 data-*/
-interference/
+summary/
 archive/
 data/dataset_speedtest_ookla.csv
 *.tar
