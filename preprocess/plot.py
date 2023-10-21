@@ -18,7 +18,7 @@ def _main(args):
 
     fig, axs = plt.subplots(
         2, 2, figsize=(40, 60),
-        gridspec_kw={"height_ratios": [4, 3], "width_ratios": [1, 4.5]})
+        gridspec_kw={"height_ratios": [4, 2.0], "width_ratios": [1, 4.5]})
 
     with np.errstate(divide='ignore'):
         axs[0, 1].imshow(np.log(arr), aspect='auto')

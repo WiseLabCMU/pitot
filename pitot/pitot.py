@@ -6,7 +6,7 @@ import jax
 from jax import numpy as jnp
 from jax import random
 
-from jaxtyping import PyTree
+from jaxtyping import PyTree, Float, Array
 from beartype.typing import Optional, Callable, cast
 
 from prediction import (
@@ -76,6 +76,20 @@ class Pitot(MatrixCompletionModel):
             "platform": self.f_platform.init(k1, jnp.arange(2)),
             "workload": self.f_workload.init(k2, jnp.arange(2)),
             "baseline": baseline}
+
+    def extract_embeddings(
+        self, params: PyTree
+    ) -> dict[str, Float[Array, "..."]]:
+        """Extract learned embeddings."""
+        Xw, = array_unpack(
+            self.f_workload.apply(params["workload"], None),
+            (self.loss_func.N, self.mf_dim))
+        Xp, Vs, Vg = array_unpack(
+            self.f_platform.apply(params["platform"], None),
+            (self.mf_dim,),
+            (self.if_dim, self.mf_dim),
+            (self.if_dim, self.mf_dim))
+        return {"Xw": Xw, "Xp": Xp, "Vs": Vs, "Vg": Vg}
 
     def evaluate(
         self, params: PyTree, data: dict[str, types.Data]
