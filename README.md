@@ -2,6 +2,8 @@
 
 Code and dataset for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
 
+![](https://tianshu.io/resources/pitot.png)
+
 ## Setup
 
 Our experiments were run on Python 3.11, though any Python version supporting type checking by beartype and jaxtyping (3.7+) should work.
@@ -70,3 +72,8 @@ make evaluate -j16
 make alias
 ```
 - To save training time, duplicated entries are provided logically via symlinks.
+
+```sh
+make figures
+```
+- See `figures/` for outputs.

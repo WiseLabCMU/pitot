@@ -11,7 +11,7 @@ axs.yaxis.set_major_formatter(PercentFormatter())
 axs.set_xticks(np.arange(8))
 axs.set_xticklabels(["50%", "60%", "70%", "80%", "90%", "95%", "98%", "99%"])
 axs.grid()
-axs.set_ylabel("Margin")
+axs.set_ylabel("Bound Tightness")
 axs.set_xlabel("Quantile regression target quantile $\\xi$")
 
 fig.tight_layout()

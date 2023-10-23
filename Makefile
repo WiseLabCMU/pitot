@@ -7,6 +7,10 @@
 #   up to speed for Edge Systems
 #
 
+PRE=python preprocess.py
+RUN_GPU=python manage.py
+RUN_CPU=JAX_PLATFORM_NAME=cpu python manage.py
+
 # -- Type checking ------------------------------------------------------------
 
 .phony: typecheck
@@ -17,8 +21,6 @@ typecheck:
 	python -m mypy scripts
 
 # -- Data processing ----------------------------------------------------------
-
-PRE=python preprocess.py
 
 MF_SESSIONS=$(addprefix data-raw/matrix/, $(shell ls data-raw/matrix))
 IF2_SESSIONS=$(addprefix data-raw/if2/, $(shell ls data-raw/if2))
@@ -58,11 +60,11 @@ data/if4.npz: data/data.npz
 # -- Run experiments ----------------------------------------------------------
 
 splits: scripts/split.py
-	python manage.py split --seed 42 --replicates 5
+	$(RUN_CPU) split --seed 42 --replicates 5
 
 .phony: experiments
 experiments: splits
-	python manage.py train
+	$(RUN_GPU) train
 
 # -- Evaluation statistics ----------------------------------------------------
 
@@ -70,10 +72,10 @@ RESULTS=$(shell find results -name 'config.json' | xargs dirname)
 SUMMARIES=$(RESULTS:results/%=summary/%.npz)
 
 .phony: evaluate
-evaluate: $(SUMMARIES)
+evaluate: $(SUMMARIES) summary/_embeddings.npz
 
 summary/%.npz: results/%
-	-JAX_PLATFORM_NAME=cpu python manage.py evaluate -p $<
+	-$(RUN_CPU) evaluate -p $<
 
 .phony: alias
 alias:
@@ -85,3 +87,17 @@ alias:
 	-cd summary/components && ln -sf ../pitot.npz full.npz
 	-cd summary/conformal && ln -sf ../pitot.npz nonquantile.npz
 	-cd summary/baseline && ln -sf ../pitot.npz pitot.npz
+
+summary/_embeddings.npz:
+	-$(RUN_CPU) embeddings -p results/pitot -o summary/_embeddings.npz
+
+# -- Figures ------------------------------------------------------------------
+
+FIGURES=ablations_width ablations hyperparameters interference_norm \
+	interference margin_full quantile_selection tsne
+
+.phony: figures
+figures: $(FIGURES)
+
+$(FIGURES):
+	python plot/$@.py

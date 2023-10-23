@@ -47,6 +47,13 @@ fig.tight_layout()
 fig.savefig("figures/ablation_features.pdf")
 
 fig, axs = _plot_ablations(
+    "summary/features/{}.npz", {
+        "all": "All Features", "noworkload": "Platform Features Only",
+        "noplatform": "Workload Features Only", "blackbox": "No Features"})
+fig.tight_layout()
+fig.savefig("figures/ablation_features_full.pdf")
+
+fig, axs = _plot_ablations(
     "summary/components/{}.npz", {
         "full": "Interference-Aware",
         "discard": "Discard", "ignore": "Ignore"})
@@ -59,3 +66,25 @@ fig, axs = _plot_ablations(
         "notrectified": "Simple Multiplicative"})
 fig.tight_layout()
 fig.savefig("figures/ablation_relu.pdf")
+
+fig, axs = _plot_ablations(
+    "summary/{}.npz", {
+        "pitot": "Pitot",
+        "baseline/monolith": "Neural Network",
+        "baseline/attention": "Attention",
+        "baseline/factorization": "Matrix Factorization"
+    })
+fig.tight_layout()
+axs[0].set_ylim(5, 20)
+axs[1].set_ylim(8, 25)
+fig.savefig("figures/baseline.pdf")
+
+fig, axs = _plot_ablations(
+    "summary/{}.npz", {
+        "pitot": "Pitot",
+        "baseline/monolith": "Neural Network",
+        "baseline/attention": "Attention",
+        "baseline/factorization": "Matrix Factorization"
+    })
+fig.tight_layout()
+fig.savefig("figures/baseline_full.pdf")
