@@ -1,3 +1,5 @@
+"""t-SNE scatter plot visualizations."""
+
 import numpy as np
 from matplotlib import pyplot as plt
 import re
@@ -48,7 +50,7 @@ suite_index = np.array(
 
 tsne = _tsne(embeddings, "Xw",  seed=46)
 markers = ['.', '+', '1', 'x', '2', '*']
-fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 for (k, v), m in zip(suites.items(), markers):
     ax.scatter(
         *tsne[suite_index == v].T, c='C{}'.format(v),
@@ -80,7 +82,7 @@ runtime_index = np.array([
     runtimes[x.split(':')[0]] for x in data["n_platform"]])
 
 tsne = _tsne(embeddings, "Xp", seed=40)
-fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 markers = ['.', 'x', '+', '*', '|', '_', '1', '2', '3', '4']
 for (k, v), m in zip(runtimes.items(), markers):
     ax.scatter(
@@ -110,7 +112,7 @@ for i, (k, v) in enumerate(architectures.items()):
     architecture_index[members] = i
 
 tsne = _tsne(embeddings, "Xp", 40)
-fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 markers = ['.', 'x', '+', '1', '2']
 for (i, k), m in zip(enumerate(architectures), markers):
     ax.scatter(
@@ -118,4 +120,3 @@ for (i, k), m in zip(enumerate(architectures), markers):
         label=k, marker=m)
 _notick(fig, ax)
 fig.savefig("figures/tsne_device.pdf")
-

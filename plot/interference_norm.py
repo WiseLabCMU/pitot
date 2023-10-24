@@ -49,7 +49,7 @@ for i, (k, v) in enumerate(architectures.items()):
         if val.split(':')[1] in v])
     architecture_index[members] = i
 
-fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 markers = ['.', 'x', '+', '1', '2']
 for (i, k), m in zip(enumerate(architectures), markers):
     mask = (architecture_index == i)
