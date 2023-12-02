@@ -1,11 +1,3 @@
-"""Data collection/marshalling."""
+"""Data processing scripts."""
 
-from . import platforms, opcodes, dataset, plot, interference
-
-commands = {
-    "platforms": platforms,
-    "opcodes": opcodes,
-    "dataset": dataset,
-    "interference": interference,
-    "plot": plot
-}
+_scripts = ["platforms", "opcodes", "dataset", "interference", "plot"]

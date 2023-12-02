@@ -1,10 +1,3 @@
-"""Train/eval scripts."""
+"""Training and evaluation scripts."""
 
-from . import split, train, evaluate, embeddings
-
-commands = {
-    "split": split,
-    "train": train,
-    "evaluate": evaluate,
-    "embeddings": embeddings
-}
+_scripts = ["split", "train", "evaluate", "embeddings"]
