@@ -26,7 +26,7 @@ def _plot_ablations(
     axs[0].set_ylabel("Bound Tightness")
     for ax in axs:
         ax.grid()
-        ax.set_xlabel("Miscoverate Rate $\\varepsilon$")
+        ax.set_xlabel("Miscoverage Rate $\\varepsilon$")
         ax.set_xticks([0, 2, 4, 6, 8])
         ax.set_xticklabels([0.1, 0.08, 0.06, 0.04, 0.02])
     return fig, axs
