@@ -16,7 +16,7 @@ def _get_interference(path):
 
 
 ifn = {n: _get_interference("data/if{}.npz".format(n)) for n in [2, 3, 4]}
-fig, axs = plt.subplots(3, 1, figsize=(6, 4))
+fig, axs = plt.subplots(1, 3, figsize=(12, 2))
 for ax, n in zip(axs, ifn):
     ax.hist(ifn[n], bins=np.linspace(1, 21, 81))
     ax.set_yscale('log')
@@ -25,14 +25,14 @@ for ax, n in zip(axs, ifn):
     ax.set_yticklabels([])
     ax.set_xticks([1, 2, 5, 10, 20])
     ax.text(
-        15.5, 5e3, "{}-way Interference".format(n),
+        11.5, 5e3, "{}-way Interference".format(n),
         backgroundcolor='white', fontsize=11.0)
 
-for ax in axs[:-1]:
-    ax.set_xticklabels([])
-axs[-1].set_xlabel("Interference Slowdown")
-axs[-1].set_xticklabels(['1x', '2x', '5x', '10x', '20x'])
-axs[1].set_ylabel('Log Density')
+for ax in axs:
+    ax.set_xticklabels(['1x', '2x', '5x', '10x', '20x'])
 
-fig.tight_layout()
+axs[0].set_ylabel('Log Density')
+axs[1].set_xlabel("Interference Slowdown")
+
+fig.tight_layout(w_pad=-0.5)
 fig.savefig('figures/interference.pdf')
