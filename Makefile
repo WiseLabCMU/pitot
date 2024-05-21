@@ -3,8 +3,6 @@
 #   __  /_/ /_  /_  __/  __ \  __/
 #   _  ____/_  / / /_ / /_/ / /_  
 #   /_/     /_/  \__/ \____/\__/
-#   Bringing Runtime Prediction
-#   up to speed for Edge Systems
 #
 
 PRE=python preprocess.py

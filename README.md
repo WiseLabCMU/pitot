@@ -1,8 +1,4 @@
-# Pitot: Bringing Runtime Prediction up to speed for WebAssembly
-
-Code and dataset for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
-
-![](https://tianshu.io/resources/pitot.png)
+# Pitot
 
 ## Setup
 
