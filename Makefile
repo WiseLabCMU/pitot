@@ -11,15 +11,6 @@ PRE=python preprocess.py
 RUN_GPU=python manage.py
 RUN_CPU=JAX_PLATFORM_NAME=cpu python manage.py
 
-# -- Type checking ------------------------------------------------------------
-
-.phony: typecheck
-typecheck:
-	python -m mypy prediction
-	python -m mypy pitot
-	python -m mypy preprocess
-	python -m mypy scripts
-
 # -- Data processing ----------------------------------------------------------
 
 MF_SESSIONS=$(addprefix data-raw/matrix/, $(shell ls data-raw/matrix))

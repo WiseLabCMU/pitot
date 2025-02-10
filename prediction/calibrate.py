@@ -1,9 +1,9 @@
 """Split Conformal Regression Implementation."""
 
 from functools import partial
-from jax import vmap
-from jax import numpy as jnp
 
+from jax import numpy as jnp
+from jax import vmap
 from jaxtyping import Array, Float
 
 from .loss import PercentError

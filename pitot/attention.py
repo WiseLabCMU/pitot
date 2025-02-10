@@ -1,13 +1,11 @@
 """Attention-based interference model."""
 
-from functools import partial
 import haiku as hk
 import optax
 import jax
 from jax import numpy as jnp
-from jax import random
 
-from jaxtyping import PyTree
+from jaxtyping import PyTree, PRNGKeyArray
 from beartype.typing import Optional
 
 from prediction import MatrixCompletionModel, loss, ObjectiveSet, types, Split
@@ -54,7 +52,7 @@ class Attention(MatrixCompletionModel):
             name="Attention")
 
     def _init(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+        self, key: PRNGKeyArray, splits: dict[str, Split]
     ) -> PyTree:
         """Get model parameters."""
         dim = (

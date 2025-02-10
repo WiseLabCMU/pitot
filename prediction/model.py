@@ -1,20 +1,18 @@
 """Matrix completion model base class."""
 
-from tqdm import tqdm as tqdm_base
 from textwrap import indent
 
 import jax
+import optax
+from beartype.typing import Optional, cast
 from jax import numpy as jnp
 from jax import random
-import optax
+from jaxtyping import Array, Float, PRNGKeyArray, PyTree, UInt
+from tqdm import tqdm as tqdm_base
 
-from beartype.typing import Optional, cast
-from jaxtyping import PyTree, Float, Array, UInt
-
-from . import types
+from . import types, utils
 from .loss import Loss
 from .objective import ObjectiveSet, Split
-from . import utils
 
 
 class MatrixCompletionModel:
@@ -35,13 +33,13 @@ class MatrixCompletionModel:
         self.val = jax.jit(self._val)
 
     def _init(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+        self, key: PRNGKeyArray, splits: dict[str, Split]
     ) -> PyTree:
         """Get model parameters."""
         raise NotImplementedError()
 
     def init(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+        self, key: PRNGKeyArray, splits: dict[str, Split]
     ) -> types.TrainState:
         """Get model initialization."""
         params = self._init(key, splits)
@@ -77,7 +75,7 @@ class MatrixCompletionModel:
         return scalar, full
 
     def _step(
-        self, key: random.PRNGKeyArray, state: types.TrainState,
+        self, key: PRNGKeyArray, state: types.TrainState,
         splits: dict[str, UInt[Array, "_"]]
     ) -> tuple[types.TrainState, dict]:
         """Run a single training step.
@@ -114,7 +112,7 @@ class MatrixCompletionModel:
         return scalar, {"loss": scalar, **full}
 
     def epoch_train(
-        self, key: random.PRNGKeyArray, state: types.TrainState,
+        self, key: PRNGKeyArray, state: types.TrainState,
         splits: dict[str, UInt[Array, "_"]], steps: int = 100
     ) -> tuple[types.TrainState, dict]:
         """Train for a single (accounting) epoch."""
@@ -130,7 +128,7 @@ class MatrixCompletionModel:
         return state, cast(dict, acc)
 
     def train(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split],
+        self, key: PRNGKeyArray, splits: dict[str, Split],
         state: Optional[types.TrainState] = None,
         steps: int = 10000, val_every: int = 100, tqdm=tqdm_base
     ) -> tuple[types.TrainState, PyTree]:

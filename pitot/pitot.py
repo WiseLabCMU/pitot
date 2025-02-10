@@ -6,7 +6,7 @@ import jax
 from jax import numpy as jnp
 from jax import random
 
-from jaxtyping import PyTree, Float, Array
+from jaxtyping import PyTree, Float, Array, PRNGKeyArray
 from beartype.typing import Optional, Callable, cast
 
 from prediction import (
@@ -58,7 +58,7 @@ class Pitot(MatrixCompletionModel):
             name="Pitot")
 
     def _init(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+        self, key: PRNGKeyArray, splits: dict[str, Split]
     ) -> PyTree:
         """Get model parameters."""
         k1, k2 = random.split(key, 2)

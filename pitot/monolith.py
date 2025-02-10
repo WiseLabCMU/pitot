@@ -1,15 +1,13 @@
 """Monolithic MLP."""
 
 import haiku as hk
-import optax
 import jax
-from jax import numpy as jnp
-from jax import random
-
-from jaxtyping import PyTree
+import optax
 from beartype.typing import Optional
+from jax import numpy as jnp
+from jaxtyping import PRNGKeyArray, PyTree
 
-from prediction import MatrixCompletionModel, loss, ObjectiveSet, types, Split
+from prediction import MatrixCompletionModel, ObjectiveSet, Split, loss, types
 
 
 def _mlp(layers: list[int], dim: int) -> hk.Module:
@@ -43,7 +41,7 @@ class Monolith(MatrixCompletionModel):
             name="Monolith")
 
     def _init(
-        self, key: random.PRNGKeyArray, splits: dict[str, Split]
+        self, key: PRNGKeyArray, splits: dict[str, Split]
     ) -> PyTree:
         """Get model parameters."""
         mf_dim = (

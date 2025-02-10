@@ -1,13 +1,13 @@
 """Create data splits."""
 
 import os
-from tqdm import tqdm
 
 import numpy as np
 from jax import random
+from jaxtyping import PRNGKeyArray
+from tqdm import tqdm
 
 from prediction import ObjectiveSet, utils
-
 
 OBJECTIVES = {
     "mf": {"path": ["data/data.npz"]},
@@ -30,7 +30,7 @@ def _parse(p):
 
 
 def _create_split(
-    key: random.PRNGKeyArray, obj: ObjectiveSet, split: float, path: str
+    key: PRNGKeyArray, obj: ObjectiveSet, split: float, path: str
 ) -> None:
     """Create data split."""
     _args = {"train": split * 0.8, "val": split * 0.2}

@@ -1,8 +1,7 @@
 """Data types for runtime matrix completion algorithms."""
 
-import pickle
-from jaxtyping import UInt, Array, Float, PyTree
 from beartype.typing import NamedTuple
+from jaxtyping import Array, Float, PyTree, UInt
 
 
 class Data(NamedTuple):

@@ -1,0 +1,28 @@
+[project]
+name = "pitot"
+version = "1.0.0"
+description = ""
+authors = [
+    {name = "Tianshu Huang",email = "thetianshuhuang@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "jax[cuda12]",
+    "numpy",
+    "dm-haiku",
+    "optax",
+    "pandas",
+    "tqdm",
+    "matplotlib",
+    "tqdm-stubs",
+    "jaxtyping",
+    "beartype",
+    "mypy"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

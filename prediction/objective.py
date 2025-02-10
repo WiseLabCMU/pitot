@@ -3,11 +3,10 @@
 from textwrap import indent
 
 import numpy as np
+from beartype.typing import Iterable, NamedTuple, Optional, Union
 from jax import numpy as jnp
 from jax import random
-
-from jaxtyping import Array, UInt, Float
-from beartype.typing import NamedTuple, Iterable, Union, Optional
+from jaxtyping import Array, Float, PRNGKeyArray, UInt
 
 from . import types
 
@@ -106,7 +105,7 @@ class Objective(NamedTuple):
             features=axes, weight=weight, batch=batch, name=name)
 
     def split(
-        self, key: random.PRNGKeyArray,
+        self, key: PRNGKeyArray,
         train: Union[float, int] = 8000, val: Union[float, int] = 2000
     ) -> Split:
         """Create splits.
@@ -200,7 +199,7 @@ class ObjectiveSet:
         return {k: self.objectives[k].index(v) for k, v in splits.items()}
 
     def sample(
-        self, key: random.PRNGKeyArray, splits: dict[str, UInt[Array, "_"]]
+        self, key: PRNGKeyArray, splits: dict[str, UInt[Array, "_"]]
     ) -> dict[str, types.Data]:
         """Sample splits."""
         kt = random.split(key, len(self.objectives))
@@ -219,7 +218,7 @@ class ObjectiveSet:
         return acc / self.total_weight
 
     def split(
-        self, key: random.PRNGKeyArray,
+        self, key: PRNGKeyArray,
         splits: dict[str, dict[str, Union[float, int]]]
     ) -> dict[str, Split]:
         """Create splits from size dictionary.

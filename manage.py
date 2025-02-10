@@ -1,12 +1,12 @@
 """Script dispatcher."""
 
-from argparse import ArgumentParser
 import importlib
+from argparse import ArgumentParser
 
 
 def dispatch(target: str) -> None:
     """Dispatch scripts to the specified module.
-    
+
     The module should have a `_scripts` attribute with the list of valid
     scripts; the `__doc__` is used as the script description.
     """

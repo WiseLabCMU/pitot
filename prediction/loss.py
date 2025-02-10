@@ -1,8 +1,8 @@
 """Prediction objectives/metrics."""
 
+from beartype.typing import Optional, Sequence, Union
 from jax import numpy as jnp
 from jaxtyping import Array, Float32
-from beartype.typing import Optional, Union, Sequence
 
 
 class Loss:
