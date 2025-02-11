@@ -1,12 +1,11 @@
 """t-SNE scatter plot visualizations."""
 
-import numpy as np
-from matplotlib import pyplot as plt
 import re
 
+import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
-
 
 embeddings = np.load("summary/_embeddings.npz")
 data = np.load("data/data.npz")

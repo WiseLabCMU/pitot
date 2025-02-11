@@ -1,12 +1,10 @@
 """Interference matrix interpretation."""
 
-import numpy as np
-from matplotlib import pyplot as plt
-from jax import numpy as jnp
 import jax
-
+import numpy as np
+from jax import numpy as jnp
+from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
-
 
 embeddings = np.load("summary/_embeddings.npz")
 data = np.load("data/data.npz")
@@ -63,7 +61,7 @@ for (i, k), m in zip(enumerate(architectures), markers):
 ax.grid(visible=True)
 ax.legend(loc='lower right')
 ax.set_ylabel("Measured Mean Interference Slowdown")
-ax.set_xlabel("Learned $\mathbb{E}[||\mathbf{F}_j||_2]$")
+ax.set_xlabel(r"Learned $\mathbb{E}[||\mathbf{F}_j||_2]$")
 ax.yaxis.set_major_formatter(PercentFormatter())
 fig.tight_layout()
 fig.savefig("figures/interference_norm.pdf")

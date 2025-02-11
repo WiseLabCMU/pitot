@@ -1,14 +1,15 @@
 """Create dataset from raw collected data."""
 
 import json
-import numpy as np
 import os
 from functools import partial
 
+import numpy as np
 from beartype.typing import Optional
 
 from prediction.utils import tree_stack
-from ._common import workload_name, platform_name, apply_recursive
+
+from ._common import apply_recursive, platform_name, workload_name
 
 
 def _parse(p):
@@ -33,6 +34,7 @@ def _load(
 ) -> Optional[tuple[dict[str, int], float]]:
     t = np.array(data["wall"])
     t = t[t > 0]
+
     w = workload_name(data["module"])
     device = devices[data["module"]["parent"]]["name"]
     p = platform_name(device, data["module"]["args"]["engine"])
@@ -40,7 +42,7 @@ def _load(
     if len(t) == 0 or p in exclude:
         return None
     else:
-        return {"platform": pmap[p], "workload": wmap[w]}, np.mean(t)
+        return {"platform": pmap[p], "workload": wmap[w]}, float(np.mean(t))
 
 
 def _load2(
@@ -50,7 +52,6 @@ def _load2(
     return [
         ({"platform": pname, "workload": wmap[workload_name(mod)]}, t)
         for mod, t in data["data"].items()]
-
 
 def _main(args):
 

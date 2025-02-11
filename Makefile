@@ -7,9 +7,11 @@
 #   up to speed for Edge Systems
 #
 
-PRE=python preprocess.py
-RUN_GPU=python manage.py
-RUN_CPU=JAX_PLATFORM_NAME=cpu python manage.py
+PYTHON=python
+
+PRE=$(PYTHON) preprocess.py
+RUN_GPU=$(PYTHON) manage.py
+RUN_CPU=JAX_PLATFORM_NAME=cpu $(PYTHON) manage.py
 
 # -- Data processing ----------------------------------------------------------
 

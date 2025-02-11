@@ -1,11 +1,10 @@
 """Rank 1 baseline model."""
 
-import numpy as np
 import jax
+import numpy as np
+from beartype.typing import NamedTuple, Optional, Union
 from jax import numpy as jnp
-
-from beartype.typing import NamedTuple, Union, Optional
-from jaxtyping import Float, Bool, UInt, Array
+from jaxtyping import Array, Bool, Float, UInt
 
 from prediction import types
 

@@ -1,14 +1,15 @@
 """Assemble interference dataset."""
 
-from functools import partial
 import json
-import numpy as np
 import os
+from functools import partial
 
+import numpy as np
 from jaxtyping import Float
 
 from prediction.utils import tree_stack
-from ._common import workload_name, platform_name, apply_recursive
+
+from ._common import apply_recursive, platform_name, workload_name
 
 
 def _parse(p):
@@ -35,7 +36,10 @@ def _load(
 
     res = []
     for i, (w, wr) in enumerate(zip(ww, ww_raw)):
-        t = np.array(data["{}:{}".format(i, wr)])
+        try:
+            t = np.array(data["{}:{}".format(i, wr)])
+        except KeyError:
+            return []
         if np.any(t[:-1] == 0):
             return []
 

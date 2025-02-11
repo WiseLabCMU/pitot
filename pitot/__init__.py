@@ -13,13 +13,11 @@ r"""Pitot: method and baselines.
 """
 
 from . import presets
-from .pitot import Pitot
-from .ignore import PitotIgnore
-from .monolith import Monolith
 from .attention import Attention
-from .linear_scaling import (
-    LinearScaling, LinearScalingProblem, LinearScalingSolution)
-
+from .ignore import PitotIgnore
+from .linear_scaling import LinearScaling, LinearScalingProblem, LinearScalingSolution
+from .monolith import Monolith
+from .pitot import Pitot
 
 __all__ = [
     "presets",

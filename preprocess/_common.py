@@ -2,8 +2,8 @@
 
 import json
 import os
-from beartype.typing import Callable, Optional, Any, Union
 
+from beartype.typing import Any, Callable, Optional, Union
 
 WORKLOAD_PATTERNS = {
     ".wasm": "",
@@ -25,6 +25,7 @@ def workload_name(meta: Union[str, dict]) -> str:
         name = meta
     else:
         name = ":".join([meta["file"]] + meta.get("args", {}).get("argv", []))
+
     for k, v in WORKLOAD_PATTERNS.items():
         name = name.replace(k, v)
     return name
@@ -52,5 +53,6 @@ def apply_recursive(
                 except json.JSONDecodeError:
                     print("Invalid JSON: {}".format(path))
                 except Exception as e:
-                    print("Couldn't load: {}. {}".format(p, e))
+                    print("Couldn't load: {}. {}: {}".format(
+                        p, type(e), str(e)))
     return res

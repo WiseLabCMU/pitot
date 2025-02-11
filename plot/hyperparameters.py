@@ -1,9 +1,8 @@
 """Hyperparameter Ablations."""
 
 import numpy as np
-from matplotlib import pyplot as plt
-
 from beartype.typing import Any
+from matplotlib import pyplot as plt
 
 import plot
 

@@ -19,10 +19,18 @@ dependencies = [
     "tqdm-stubs",
     "jaxtyping",
     "beartype",
-    "mypy"
+    "mypy",
+    "scikit-learn"
 ]
 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+exclude = ["^plot/(.*).py"]
+
+[[tool.mypy.overrides]]
+module = ["optax.*"]
+ignore_missing_imports = true

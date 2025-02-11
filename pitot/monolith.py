@@ -3,7 +3,7 @@
 import haiku as hk
 import jax
 import optax
-from beartype.typing import Optional
+from beartype.typing import Optional, cast
 from jax import numpy as jnp
 from jaxtyping import PRNGKeyArray, PyTree
 
@@ -31,10 +31,14 @@ class Monolith(MatrixCompletionModel):
         optimizer: Optional[optax.GradientTransformation] = None,
         layers: list[int] = [256, 256]
     ) -> None:
-        def forward(*args, **kwargs):
-            return _mlp(layers=layers, dim=losses.N)(*args, **kwargs)
+        def forward(*args, **kwargs) -> PyTree:
+            return _mlp(
+                layers=layers, dim=losses.N
+            )(*args, **kwargs)  # type: ignore
 
-        self.nn = hk.without_apply_rng(hk.transform(forward))
+        # Tell the type checker that we'll always get Transformed here
+        self.nn = cast(
+            hk.Transformed, hk.without_apply_rng(hk.transform(forward)))
 
         super().__init__(
             objectives=objectives, losses=losses, optimizer=optimizer,

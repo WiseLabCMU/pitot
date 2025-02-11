@@ -1,14 +1,13 @@
 """Attention-based interference model."""
 
 import haiku as hk
-import optax
 import jax
-from jax import numpy as jnp
-
-from jaxtyping import PyTree, PRNGKeyArray
+import optax
 from beartype.typing import Optional
+from jax import numpy as jnp
+from jaxtyping import PRNGKeyArray, PyTree
 
-from prediction import MatrixCompletionModel, loss, ObjectiveSet, types, Split
+from prediction import MatrixCompletionModel, ObjectiveSet, Split, loss, types
 from prediction.utils import array_unpack
 
 
@@ -37,9 +36,11 @@ class Attention(MatrixCompletionModel):
         self.attention_dim = attention_dim
         self.value_dim = value_dim
 
-        def _module(layers, dim):
+        def _module(layers, dim) -> hk.Transformed:
             def forward(*args, **kwargs):
-                return _mlp(layers=layers, dim=dim)(*args, **kwargs)
+                return _mlp(
+                    layers=layers, dim=dim
+                )(*args, **kwargs)  # type: ignore
 
             return hk.without_apply_rng(hk.transform(forward))
 

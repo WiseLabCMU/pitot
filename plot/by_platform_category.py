@@ -1,3 +1,5 @@
+"""Error by type of platform."""
+
 import json
 import os
 import pickle

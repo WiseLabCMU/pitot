@@ -1,25 +1,54 @@
-# Pitot: Bringing Runtime Prediction up to speed for WebAssembly
+# Pitot: Runtime Prediction for Edge Computing
 
-Code and dataset for Pitot: Bringing Runtime Prediction up to speed for WebAssembly.
+Code and dataset for Pitot: Runtime Prediction for Edge Computing with Conformal Matrix Completion.
 
 ![](https://tianshu.io/resources/pitot.png)
 
-## Setup
+## Usage
 
-Our experiments were run on Python 3.11, though any Python version supporting type checking by beartype and jaxtyping (3.7+) should work.
+1. **Setup**: Assuming you have a nvidia GPU, you can simply install all dependencies with conda and poetry:
+    ```sh
+    conda create -n pitot python=3.12
+    poetry install
+    ```
+    - The processed dataset used in the paper is included in the `data/` folder.
 
-**NOTE**: assuming you want to use a GPU, you will need to [install JAX](https://github.com/google/jax#installation) with a version that matches your CUDA and CuDNN version. Since JAX can't be installed automatically with GPU support, it is not included in `requirements.txt`.
+2. **Train Models**: To replicate the experiments shown in the paper:
+    ```sh
+    make splits
+    make experiments
+    ```
+    - `make experiments` calls `python manage.py train`, which will automatically run all experiments from the specified list which are not present in `results/`. Note that each method result folder will contain a `config.json` with all hyperparameters used.
+    - See `pitot/_presets.py` for the programmatically generated list of experiments.
+    - This assumes that `python` points to the environment python which `poetry install` was run inside; if this is not the case, you can also modify the makefile with `PYTHON=your/python/bin`.
 
-```sh
-pip install -r requirements.txt
-```
+3. **Evaluate**: The results are evaluated summarized to make them easier to analyze later:
+    ```sh
+    make evaluate -j16
+    make alias
+    ```
+    - This runs on CPU, so can be run simultaneously while training is in progress.
+    - Some runs are shared between multiple ablations, so are `alias`'d together for convenience with `make alias`.
 
-If you would like to use the exact versions of each dependency that we used, please use
-```sh
-pip install -r requirements-pinned.txt
-```
+4. **Analyze**: The plots shown in the paper can be generated with
+    ```sh
+    make figures 
+    ```
 
-Our environment runs nvidia driver `535.113.01` and CUDA `11.8.89`.
+## Dataset Structure
+
+Dataset conventions:
+- `t: float[N]`: observed runtime (execution time), in seconds.
+- `i_{axis}: int[N]`: index along each axis into matrix/tensor axes.
+- `d_{axis}: float[axis:len, axis:features]`: side information for each axis.
+- `n_{axis}: str[axis:len]`: names corresponding to values in each axis.
+- `f_{axis}: str[axis:features]`: feature names corresponding to side information for each axis.
+
+Dataset entry names:
+- `data.npz`: `workload`, `platform`; contains `d_{}`, `n_{}`, `f_{}` data/metadata.
+- `if2.npz`: `workload`, `platform`, `interference0`
+- `if3.npz`: `workload`, `platform`, `interference0`, `interference1`
+- `if4.npz`: `workload`, `platform`, `interference0`, `interference1`, `interference2`
 
 ## Repository Structure
 
@@ -53,27 +82,3 @@ Result files:
 - `summary`: output of method evaluation.
     - Each `results/method/path/` is turned into one `summary/method/path.npz`.
     - Entries are stacked with data split size as the first axis and the replicate as the second axis (on top of any remaining axes, e.g. target quantile)
-
-## Experiments
-
-To replicate the experiments shown in the paper:
-```sh
-make experiments
-```
-- Should take ~5 hours on a RTX 4090 / 7950X; your mileage may vary.
-
-```sh
-make evaluate -j16
-```
-- Change `-j` based on your CPU; should take a few minutes.
-- Each evaluation runs CPU-only (evaluation is mostly data marshalling), so the only practical limit on concurrency is total memory.
-
-```sh
-make alias
-```
-- To save training time, duplicated entries are provided logically via symlinks.
-
-```sh
-make figures
-```
-- See `figures/` for outputs.

@@ -1,16 +1,21 @@
 """Pitot model."""
 
 import haiku as hk
-import optax
 import jax
+import optax
+from beartype.typing import Callable, Optional, cast
 from jax import numpy as jnp
 from jax import random
-
-from jaxtyping import PyTree, Float, Array, PRNGKeyArray
-from beartype.typing import Optional, Callable, cast
+from jaxtyping import Array, Float, PRNGKeyArray, PyTree
 
 from prediction import (
-    MatrixCompletionModel, embeddings, loss, ObjectiveSet, types, Split)
+    MatrixCompletionModel,
+    ObjectiveSet,
+    Split,
+    embeddings,
+    loss,
+    types,
+)
 from prediction.utils import array_unpack
 
 from .linear_scaling import LinearScaling

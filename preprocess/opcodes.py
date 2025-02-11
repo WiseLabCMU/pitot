@@ -1,11 +1,11 @@
 """Aggregate benchmark module opcode counts."""
 
-import os
-import numpy as np
 import json
-from matplotlib import pyplot as plt
+import os
 
-from beartype.typing import Callable, Optional, Any
+import numpy as np
+from beartype.typing import Any, Callable, Optional
+from matplotlib import pyplot as plt
 
 from ._common import workload_name
 
@@ -31,7 +31,7 @@ def apply_recursive(
 def _load(path):
     with open(path) as f:
         data = json.load(f)
-    t = np.array(data["opcodes"], dtype=np.uint32)
+    t = np.array(data["opcodes"], dtype=np.uint64)
     return t, workload_name(data["module"])
 
 

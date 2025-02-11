@@ -2,13 +2,11 @@
 
 import haiku as hk
 import optax
+from beartype.typing import Callable, Optional
 from jax import numpy as jnp
-
 from jaxtyping import PyTree
-from beartype.typing import Optional, Callable
 
-from prediction import (
-    MatrixCompletionModel, embeddings, loss, ObjectiveSet, types)
+from prediction import MatrixCompletionModel, ObjectiveSet, embeddings, loss, types
 
 from .linear_scaling import LinearScaling
 from .pitot import Pitot

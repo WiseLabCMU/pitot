@@ -160,7 +160,7 @@ class Objective(NamedTuple):
         if order is None:
             order = list(self.indices.keys())
         mat = np.full([self.data[k].shape[0] for k in order], np.nan)
-        mat[tuple(order)] = self.t
+        mat[tuple(order)] = self.t  # type: ignore
         return mat
 
     def __repr__(self) -> str:

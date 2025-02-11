@@ -1,8 +1,8 @@
 """Optimal quantile example."""
 
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
-import numpy as np
 
 fig, axs = plt.subplots(1, 1, figsize=(5, 3))
 yy = np.load("summary/conformal/optimal.npz")['mf_width_raw']

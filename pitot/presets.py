@@ -4,7 +4,6 @@ import copy
 
 from ._presets import PRESETS
 
-
 _OBJECTIVES = {
     "mf": {
         "path": ["data/data.npz"],

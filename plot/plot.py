@@ -1,8 +1,7 @@
 """Figure elements."""
 
-import numpy as np
 import matplotlib.ticker as mtick
-
+import numpy as np
 from jaxtyping import Num
 
 

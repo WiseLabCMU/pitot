@@ -3,7 +3,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-
 mat = np.load("data/data.npz")
 baseline = np.zeros((len(mat["n_platform"]), len(mat["n_workload"])))
 baseline[mat["i_platform"], mat["i_workload"]] = mat["t"]
