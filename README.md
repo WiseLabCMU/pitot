@@ -1,6 +1,6 @@
-# Pitot: Runtime Prediction for Edge Computing
+# Pitot: Interference-Aware Edge Runtime Prediction with Conformal Matrix Completion
 
-Code and dataset for Pitot: Runtime Prediction for Edge Computing with Conformal Matrix Completion.
+Code and dataset for *Interference-Aware Edge Runtime Prediction with Conformal Matrix Completion*.
 
 ![](https://tianshu.io/resources/pitot.png)
 
@@ -24,7 +24,7 @@ Code and dataset for Pitot: Runtime Prediction for Edge Computing with Conformal
 
 3. **Evaluate**: The results are evaluated summarized to make them easier to analyze later:
     ```sh
-    make evaluate -j16
+    make evaluate -j16  # or some other number of jobs
     make alias
     ```
     - This runs on CPU, so can be run simultaneously while training is in progress.
@@ -63,8 +63,8 @@ Scripts:
 - `plot.py` / `plot`: scripts for drawing the figures shown in the paper.
 
 Data files:
-- `data`: after unzipping `data.tar`, the resulting `data` folder should be placed in the repository directory.
-- `splits`: this directory is created by `make splits`. To make sure that you use the same data splits (even with RNG changes or other code changes), you can download the supplied `splits.tar` file and extract it here.
+- `data`: our dataset is included in this repository directly.
+- `splits`: this directory is created by `make splits`.
 
 Result files:
 - `results`: outputs of each experiment are saved here. Has the following structure:
