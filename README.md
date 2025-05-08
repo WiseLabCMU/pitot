@@ -40,7 +40,7 @@ Code and dataset for *Interference-Aware Edge Runtime Prediction with Conformal 
 See [here](https://github.com/SilverLineFramework/benchmarks) for the benchmarks used to collect our dataset.
 
 Dataset conventions:
-- `t: float[N]`: observed runtime (execution time), in seconds.
+- `t: float[N]`: observed average runtime (execution time), in nanoseconds.
 - `i_{axis}: int[N]`: index along each axis into matrix/tensor axes.
 - `d_{axis}: float[axis:len, axis:features]`: side information for each axis.
 - `n_{axis}: str[axis:len]`: names corresponding to values in each axis.
